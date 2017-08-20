@@ -1,6 +1,12 @@
 import XCTest
+
 @testable import UBJSONSerializationTests
 
-XCTMain([
-    testCase(UBJSONSerializationTests.allTests),
-])
+var tests: [XCTestCaseEntry] = [
+	testCase([
+	]),
+	testCase([
+		("testExample", UBJSONSerializationTests.testExample),
+	]),
+]
+XCTMain(tests)
