@@ -5,8 +5,12 @@ import XCTest
 
 class UBJSONSerializationTests: XCTestCase {
 	
-	func testExample() {
-		XCTAssertTrue(true)
+	func testDecodeNil() {
+		XCTAssertNil(try UBJSONSerialization.ubjsonObject(with: Data("Z".utf8)))
 	}
 	
+	func testDecodeNop() {
+		XCTAssertTrue(try UBJSONSerialization.ubjsonObject(with: Data("N".utf8)).flatMap{ $0 is Nop } ?? false)
+	}
+
 }
