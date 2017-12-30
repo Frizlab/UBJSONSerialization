@@ -21,7 +21,18 @@ final public class UBJSONSerialization {
 	public struct ReadingOptions : OptionSet {
 		
 		public let rawValue: Int
-		/* Empty. We just create the enum in case we want to add something to it later. */
+		
+		/**
+		Allow high-precision numbers (numbers formatted as Strings). Will be
+		returned as HighPrecisionNumber, which is basically a wrapper for the
+		string-encoded value.
+		
+		The serialization will make sure the returned wrapped string is a valid
+		high-precision number (follows the [JSON number spec](http://json.org)).
+		
+		You can use something like [BigInt](https://github.com/lorentey/BigInt) to
+		handle big integers. Note high-precision numbers can also be decimals. */
+		public static let allowHighPrecisionNumbers = ReadingOptions(rawValue: 1 << 0)
 		
 		public init(rawValue v: Int) {
 			rawValue = v
@@ -40,13 +51,6 @@ final public class UBJSONSerialization {
 		
 	}
 	
-	/** The UBJSON Serialization errors enum. */
-	public enum UBJSONSerializationError : Error {
-		/** An invalid element was found. The element is given in argument to this
-		enum case. */
-		case invalidElementType(UInt8)
-	}
-	
 	public class func ubjsonObject(with data: Data, options opt: ReadingOptions = []) throws -> Any? {
 		let simpleDataStream = SimpleDataStream(data: data)
 		return try ubjsonObject(with: simpleDataStream, options: opt)
@@ -63,6 +67,14 @@ final public class UBJSONSerialization {
 	 *       so one day we should migrate, or at least measure the performances
 	 *       of both. */
 	class func ubjsonObject(with bufferStream: SimpleStream, options opt: ReadingOptions = []) throws -> Any? {
+		/* We assume Swift will continue to use the IEEE 754 spec for representing
+		 * floats and doubles forever. Use of the spec validated in August 2017
+		 * by @jckarter: https://twitter.com/jckarter/status/900073525905506304 */
+		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
+		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
+		
+		/* TODO: Handle endianness! UBSJON is big endian. */
+		
 		let intType: UInt8 = try bufferStream.readType()
 		guard let elementType = UBJSONElementType(rawValue: intType) else {
 			throw UBJSONSerializationError.invalidElementType(intType)
@@ -74,13 +86,14 @@ final public class UBJSONSerialization {
 		case .`true`:  return true
 		case .`false`: return false
 			
-		case .int8Bits: ()
-		case .uint8Bits: ()
-		case .int16Bits: ()
-		case .int32Bits: ()
-		case .int64Bits: ()
-		case .float32Bits: ()
-		case .float64Bits: ()
+		case .int8Bits:    let ret:   Int8 = try bufferStream.readType(); return ret
+		case .uint8Bits:   let ret:  UInt8 = try bufferStream.readType(); return ret
+		case .int16Bits:   let ret:  Int16 = try bufferStream.readType(); return ret
+		case .int32Bits:   let ret:  Int32 = try bufferStream.readType(); return ret
+		case .int64Bits:   let ret:  Int64 = try bufferStream.readType(); return ret
+		case .float32Bits: let ret:  Float = try bufferStream.readType(); return ret
+		case .float64Bits: let ret: Double = try bufferStream.readType(); return ret
+			
 		case .highPrecisionNumber: ()
 		case .char: ()
 		case .string: ()
