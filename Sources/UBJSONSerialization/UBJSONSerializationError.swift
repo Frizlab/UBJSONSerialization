@@ -15,8 +15,22 @@ public enum UBJSONSerializationError : Error {
 	/** An invalid element was found. The element is given in argument to this
 	enum case. */
 	case invalidElementType(UInt8)
+	/** A high precision number element was found but the option to support them
+	was not set when parsing was called. */
+	case unexpectedHighPrecisionNumber
 	
-	/** An invalid high-preicision number was found. */
+	case invalidUTF8String(Data)
+	/** A char must be between 0 and 127 (both inclusive). */
+	case invalidChar(Int8)
+	case invalidContainerType(UInt8)
+	
+	case malformedHighPrecisionNumber
+	case malformedString
+	case malformedContainerCount
+	case malformedArray
+	case malformedObject
+	
+	/** An invalid high-preicision number string was found. */
 	case invalidHighPrecisionNumber(String)
 	
 }
