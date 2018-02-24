@@ -113,7 +113,18 @@ final public class UBJSONSerialization {
 	}
 	
 	public class func isValidUBJSONObject(_ obj: Any?) -> Bool {
-		return false
+		switch obj {
+		case nil:                                                         return true
+		case _ as Bool, _ as Nop, _ as Int, _ as Int8, _ as UInt8:        return true
+		case _ as Int16, _ as Int32, _ as Int64, _ as Float, _ as Double: return true
+		case _ as HighPrecisionNumber, _ as Character, _ as String:       return true
+			
+		case let a as         [Any?]: return !a.contains(where: { !isValidUBJSONObject($0) })
+		case let o as [String: Any?]: return !o.contains(where: { !isValidUBJSONObject($0.value) })
+			
+		default:
+			return false
+		}
 	}
 	
 	/* ***************
