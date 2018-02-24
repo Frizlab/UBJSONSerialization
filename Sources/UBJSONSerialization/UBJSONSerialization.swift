@@ -104,11 +104,19 @@ final public class UBJSONSerialization {
 		return try element(from: simpleStream, type: elementType, options: opt)
 	}
 	
-	public class func data(withUBJSONObject UBJSONObject: Any?, options opt: WritingOptions = []) throws -> Data {
-		throw NSError(domain: "todo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not Implemented"])
+	public class func data(withUBJSONObject object: Any?, options opt: WritingOptions = []) throws -> Data {
+		let stream = OutputStream(toMemory: ())
+		stream.open(); defer {stream.close()}
+		
+		_ = try writeUBJSONObject(object, to: stream, options: opt)
+		guard let nsdata = stream.property(forKey: Stream.PropertyKey.dataWrittenToMemoryStreamKey) as? NSData else {
+			throw UBJSONSerializationError.internalError
+		}
+		
+		return Data(referencing: nsdata)
 	}
 	
-	public class func writeUBJSONObject(_ UBJSONObject: Any?, to stream: OutputStream, options opt: WritingOptions = []) throws -> Int {
+	public class func writeUBJSONObject(_ object: Any?, to stream: OutputStream, options opt: WritingOptions = []) throws -> Int {
 		throw NSError(domain: "todo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not Implemented"])
 	}
 	

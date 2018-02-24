@@ -38,4 +38,6 @@ public enum UBJSONSerializationError : Error {
 	/** An invalid high-preicision number string was found. */
 	case invalidHighPrecisionNumber(String)
 	
+	case internalError
+	
 }
