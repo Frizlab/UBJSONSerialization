@@ -175,10 +175,8 @@ final public class UBJSONSerialization {
 			size += try write(value: &v, toStream: stream)
 			
 		case let s as String:
-			let data = Data(s.utf8)
 			size += try write(elementType: .string, toStream: stream)
-			size += try writeUBJSONObject(data.count, to: stream, options: opt)
-			data.withUnsafeBytes{ ptr in size += stream.write(ptr, maxLength: data.count) }
+			try write(stringNoMarker: s, to: stream, options: opt, size: &size)
 			
 		case let a as [Any?]:
 			let warning = "todo (optimized formats)"
@@ -190,7 +188,7 @@ final public class UBJSONSerialization {
 			let warning = "todo (optimized formats)"
 			size += try write(elementType: .objectStart, toStream: stream)
 			for (k, v) in o {
-				size += try writeUBJSONObject(k, to: stream, options: opt)
+				try write(stringNoMarker: k, to: stream, options: opt, size: &size)
 				size += try writeUBJSONObject(v, to: stream, options: opt)
 			}
 			size += try write(elementType: .objectEnd, toStream: stream)
@@ -556,6 +554,12 @@ final public class UBJSONSerialization {
 	private class func write(elementType: UBJSONElementType, toStream stream: OutputStream) throws -> Int {
 		var t = elementType.rawValue
 		return try write(value: &t, toStream: stream)
+	}
+	
+	private class func write(stringNoMarker s: String, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
+		let data = Data(s.utf8)
+		size += try writeUBJSONObject(data.count, to: stream, options: opt)
+		data.withUnsafeBytes{ ptr in size += stream.write(ptr, maxLength: data.count) }
 	}
 	
 	private class func write(int i: inout Int8, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
