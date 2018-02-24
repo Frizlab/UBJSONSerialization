@@ -92,152 +92,10 @@ final public class UBJSONSerialization {
 		 * by @jckarter: https://twitter.com/jckarter/status/900073525905506304 */
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
-		
 		/* TODO: Handle endianness! UBSJON is big endian. */
 		
 		let elementType = try self.elementType(from: simpleStream, allowNop: opt.contains(.returnNopElements))
-		switch elementType {
-		case .null:    return nil
-		case .nop:     return Nop()
-		case .`true`:  return true
-		case .`false`: return false
-			
-		case .int8Bits:    let ret:   Int8 = try simpleStream.readType(); return ret
-		case .uint8Bits:   let ret:  UInt8 = try simpleStream.readType(); return ret
-		case .int16Bits:   let ret:  Int16 = try simpleStream.readType(); return ret
-		case .int32Bits:   let ret:  Int32 = try simpleStream.readType(); return ret
-		case .int64Bits:   let ret:  Int64 = try simpleStream.readType(); return ret
-		case .float32Bits: let ret:  Float = try simpleStream.readType(); return ret
-		case .float64Bits: let ret: Double = try simpleStream.readType(); return ret
-			
-		case .highPrecisionNumber:
-			guard opt.contains(.allowHighPrecisionNumbers) else {throw UBJSONSerializationError.unexpectedHighPrecisionNumber}
-			guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
-				throw UBJSONSerializationError.malformedHighPrecisionNumber
-			}
-			let numberStrData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
-			guard let str = String(data: numberStrData, encoding: .utf8) else {
-				/* We must copy the data (numberStrData is created without copying the bytes from the stream) */
-				throw UBJSONSerializationError.invalidUTF8String(Data(numberStrData))
-			}
-			return try HighPrecisionNumber(unparsedValue: str)
-			
-		case .char:
-			let ci: Int8 = try simpleStream.readType()
-			guard ci >= 0 && ci <= 127, let s = Unicode.Scalar(Int(ci)) else {throw UBJSONSerializationError.invalidChar(ci)}
-			return Character(s)
-			
-		case .string:
-			guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
-				throw UBJSONSerializationError.malformedString
-			}
-			let strData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
-			guard let str = String(data: strData, encoding: .utf8) else {
-				/* We must copy the data (numberStrData is created without copying the bytes from the stream) */
-				throw UBJSONSerializationError.invalidUTF8String(Data(strData))
-			}
-			return str
-			
-		case .arrayStart:
-			var res = [Any?]()
-			let subParseOptWithNop = opt.union(.returnNopElements)
-			
-			var declaredObjectCount: Int?
-			var curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
-			switch curObj {
-			case .some(InternalUBJSONElement.containerType(let t)):
-				guard let countType = try ubjsonObject(with: simpleStream, options: subParseOptWithNop) as? InternalUBJSONElement, case .containerCount(let c) = countType else {
-					throw UBJSONSerializationError.malformedArray
-				}
-				throw NSError(domain: "todo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not Implemented"])
-				
-			case .some(InternalUBJSONElement.containerCount(let c)):
-				curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
-				declaredObjectCount = c
-				
-			default: (/*nop*/)
-			}
-			
-			var objectCount = 0
-			while !isEndOfContainer(currentObjectCount: objectCount, declaredObjectCount: declaredObjectCount, currentObject: curObj, containerEnd: .arrayEnd) {
-				switch curObj {
-				case .some(_ as InternalUBJSONElement):
-					/* Always an error as the arrayEnd case is detected earlier in
-					 * the isEndOfContainer method */
-					throw UBJSONSerializationError.malformedArray
-					
-				case .some(_ as Nop):
-					if opt.contains(.keepNopElementsInArrays) {
-						res.append(Nop.sharedNop)
-					}
-					
-				default:
-					res.append(curObj)
-					objectCount += 1
-				}
-				curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
-			}
-			return res
-			
-		case .objectStart:
-			var res = [String: Any?]()
-			let subParseOptNoNop = opt.subtracting(.returnNopElements)
-			let subParseOptWithNop = opt.union(.returnNopElements)
-			
-			var declaredObjectCount: Int?
-			var curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
-			switch curObj {
-			case .some(InternalUBJSONElement.containerType(let t)):
-				guard let countType = try ubjsonObject(with: simpleStream, options: subParseOptWithNop) as? InternalUBJSONElement, case .containerCount(let c) = countType else {
-					throw UBJSONSerializationError.malformedObject
-				}
-				throw NSError(domain: "todo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not Implemented"])
-				
-			case .some(InternalUBJSONElement.containerCount(let c)):
-				curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
-				declaredObjectCount = c
-				
-			case .some(_ as Nop):
-				curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
-				
-			default: (/*nop*/)
-			}
-			
-			var objectCount = 0
-			while !isEndOfContainer(currentObjectCount: objectCount, declaredObjectCount: declaredObjectCount, currentObject: curObj, containerEnd: .objectEnd) {
-				guard let key = curObj as? String else {throw UBJSONSerializationError.malformedObject}
-				curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
-				switch curObj {
-				case .some(_ as InternalUBJSONElement):
-					/* Always an error as the objectEnd case is detected earlier in
-					 * the isEndOfContainer method */
-					throw UBJSONSerializationError.malformedObject
-					
-				default:
-					res[key] = curObj
-					objectCount += 1
-				}
-				curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
-			}
-			return res
-			
-		case .arrayEnd:  return InternalUBJSONElement.arrayEnd
-		case .objectEnd: return InternalUBJSONElement.objectEnd
-			
-		case .internalContainerType:
-			let invalidTypes: Set<UBJSONElementType> = [.nop, .arrayEnd, .objectEnd, .internalContainerType, .internalContainerCount]
-			let intContainerType: UInt8 = try simpleStream.readType()
-			guard let containerType = UBJSONElementType(rawValue: intContainerType), !invalidTypes.contains(containerType) else {
-				throw UBJSONSerializationError.invalidContainerType(intContainerType)
-			}
-			return InternalUBJSONElement.containerType(containerType)
-			
-		case .internalContainerCount:
-			guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
-				throw UBJSONSerializationError.malformedContainerCount
-			}
-			return InternalUBJSONElement.containerCount(n)
-		}
+		return try element(from: simpleStream, type: elementType, options: opt)
 	}
 	
 	public class func data(withUBJSONObject UBJSONObject: Any?, options opt: WritingOptions = []) throws -> Data {
@@ -351,6 +209,212 @@ final public class UBJSONSerialization {
 		return curElementType
 	}
 	
+	private class func highPrecisionNumber(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> HighPrecisionNumber {
+		guard opt.contains(.allowHighPrecisionNumbers) else {throw UBJSONSerializationError.unexpectedHighPrecisionNumber}
+		guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
+			throw UBJSONSerializationError.malformedHighPrecisionNumber
+		}
+		let numberStrData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
+		guard let str = String(data: numberStrData, encoding: .utf8) else {
+			/* We must copy the data (numberStrData is created without copying the bytes from the stream) */
+			throw UBJSONSerializationError.invalidUTF8String(Data(numberStrData))
+		}
+		return try HighPrecisionNumber(unparsedValue: str)
+	}
+	
+	private class func string(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> String {
+		guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
+			throw UBJSONSerializationError.malformedString
+		}
+		let strData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
+		guard let str = String(data: strData, encoding: .utf8) else {
+			/* We must copy the data (numberStrData is created without copying the bytes from the stream) */
+			throw UBJSONSerializationError.invalidUTF8String(Data(strData))
+		}
+		return str
+	}
+	
+	private class func array(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> [Any?] {
+		var res = [Any?]()
+		let subParseOptWithNop = opt.union(.returnNopElements)
+		
+		var declaredObjectCount: Int?
+		var curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+		switch curObj {
+		case .some(InternalUBJSONElement.containerType(let t)):
+			guard let countType = try ubjsonObject(with: simpleStream, options: subParseOptWithNop) as? InternalUBJSONElement, case .containerCount(let c) = countType else {
+				throw UBJSONSerializationError.malformedArray
+			}
+			switch t {
+			case .null:    return [Any?](repeating: nil,   count: c)
+			case .`true`:  return [Bool](repeating: true,  count: c)
+			case .`false`: return [Bool](repeating: false, count: c)
+				
+			case .int8Bits:    let ret:   [Int8] = try simpleStream.readArrayOfType(count: c); return ret
+			case .uint8Bits:   let ret:  [UInt8] = try simpleStream.readArrayOfType(count: c); return ret
+			case .int16Bits:   let ret:  [Int16] = try simpleStream.readArrayOfType(count: c); return ret
+			case .int32Bits:   let ret:  [Int32] = try simpleStream.readArrayOfType(count: c); return ret
+			case .int64Bits:   let ret:  [Int64] = try simpleStream.readArrayOfType(count: c); return ret
+			case .float32Bits: let ret:  [Float] = try simpleStream.readArrayOfType(count: c); return ret
+			case .float64Bits: let ret: [Double] = try simpleStream.readArrayOfType(count: c); return ret
+				
+			case .highPrecisionNumber:
+				return try (0..<c).map{ _ in try highPrecisionNumber(from: simpleStream, options: opt) }
+				
+			case .char:
+				let charsAsInts: [Int8] = try simpleStream.readArrayOfType(count: c)
+				return try charsAsInts.map{
+					guard $0 >= 0 && $0 <= 127, let s = Unicode.Scalar(Int($0)) else {throw UBJSONSerializationError.invalidChar($0)}
+					return Character(s)
+				}
+				
+			case .string:
+				return try (0..<c).map{ _ in try string(from: simpleStream, options: opt) }
+				
+			case .arrayStart:
+				return try (0..<c).map{ _ in try array(from: simpleStream, options: opt) }
+				
+			case .objectStart:
+				return try (0..<c).map{ _ in try object(from: simpleStream, options: opt) }
+				
+			case .nop, .arrayEnd, .objectEnd, .internalContainerType, .internalContainerCount:
+				fatalError()
+			}
+			fatalError()
+			
+		case .some(InternalUBJSONElement.containerCount(let c)):
+			curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+			declaredObjectCount = c
+			
+		default: (/*nop*/)
+		}
+		
+		var objectCount = 0
+		while !isEndOfContainer(currentObjectCount: objectCount, declaredObjectCount: declaredObjectCount, currentObject: curObj, containerEnd: .arrayEnd) {
+			switch curObj {
+			case .some(_ as InternalUBJSONElement):
+				/* Always an error as the arrayEnd case is detected earlier in
+				 * the isEndOfContainer method */
+				throw UBJSONSerializationError.malformedArray
+				
+			case .some(_ as Nop):
+				if opt.contains(.keepNopElementsInArrays) {
+					res.append(Nop.sharedNop)
+				}
+				
+			default:
+				res.append(curObj)
+				objectCount += 1
+			}
+			curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+		}
+		return res
+	}
+	
+	private class func object(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> [String: Any?] {
+		var res = [String: Any?]()
+		let subParseOptNoNop = opt.subtracting(.returnNopElements)
+		let subParseOptWithNop = opt.union(.returnNopElements)
+		
+		var declaredObjectCount: Int?
+		var curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+		switch curObj {
+		case .some(InternalUBJSONElement.containerType(let t)):
+			guard let countType = try ubjsonObject(with: simpleStream, options: subParseOptWithNop) as? InternalUBJSONElement, case .containerCount(let c) = countType else {
+				throw UBJSONSerializationError.malformedObject
+			}
+			
+			var ret = [String: Any?]()
+			for _ in 0..<c {
+				let k = try string(from: simpleStream, options: subParseOptNoNop)
+				let v = try element(from: simpleStream, type: t, options: subParseOptNoNop)
+				ret[k] = v
+			}
+			return ret
+			
+		case .some(InternalUBJSONElement.containerCount(let c)):
+			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+			declaredObjectCount = c
+			
+		case .some(_ as Nop):
+			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+			
+		default: (/*nop*/)
+		}
+		
+		var objectCount = 0
+		while !isEndOfContainer(currentObjectCount: objectCount, declaredObjectCount: declaredObjectCount, currentObject: curObj, containerEnd: .objectEnd) {
+			guard let key = curObj as? String else {throw UBJSONSerializationError.malformedObject}
+			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+			switch curObj {
+			case .some(_ as InternalUBJSONElement):
+				/* Always an error as the objectEnd case is detected earlier in
+				 * the isEndOfContainer method */
+				throw UBJSONSerializationError.malformedObject
+				
+			default:
+				res[key] = curObj
+				objectCount += 1
+			}
+			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+		}
+		return res
+	}
+	
+	private class func element(from simpleStream: SimpleStream, type elementType: UBJSONElementType, options opt: ReadingOptions) throws -> Any? {
+		switch elementType {
+		case .nop:
+			assert(opt.contains(.returnNopElements))
+			return Nop()
+			
+		case .null:    return nil
+		case .`true`:  return true
+		case .`false`: return false
+			
+		case .int8Bits:    let ret:   Int8 = try simpleStream.readType(); return ret
+		case .uint8Bits:   let ret:  UInt8 = try simpleStream.readType(); return ret
+		case .int16Bits:   let ret:  Int16 = try simpleStream.readType(); return ret
+		case .int32Bits:   let ret:  Int32 = try simpleStream.readType(); return ret
+		case .int64Bits:   let ret:  Int64 = try simpleStream.readType(); return ret
+		case .float32Bits: let ret:  Float = try simpleStream.readType(); return ret
+		case .float64Bits: let ret: Double = try simpleStream.readType(); return ret
+			
+		case .highPrecisionNumber:
+			return try highPrecisionNumber(from: simpleStream, options: opt)
+			
+		case .char:
+			let ci: Int8 = try simpleStream.readType()
+			guard ci >= 0 && ci <= 127, let s = Unicode.Scalar(Int(ci)) else {throw UBJSONSerializationError.invalidChar(ci)}
+			return Character(s)
+			
+		case .string:
+			return try string(from: simpleStream, options: opt)
+			
+		case .arrayStart:
+			return try array(from: simpleStream, options: opt)
+			
+		case .objectStart:
+			return try object(from: simpleStream, options: opt)
+			
+		case .arrayEnd:  return InternalUBJSONElement.arrayEnd
+		case .objectEnd: return InternalUBJSONElement.objectEnd
+			
+		case .internalContainerType:
+			let invalidTypes: Set<UBJSONElementType> = [.nop, .arrayEnd, .objectEnd, .internalContainerType, .internalContainerCount]
+			let intContainerType: UInt8 = try simpleStream.readType()
+			guard let containerType = UBJSONElementType(rawValue: intContainerType), !invalidTypes.contains(containerType) else {
+				throw UBJSONSerializationError.invalidContainerType(intContainerType)
+			}
+			return InternalUBJSONElement.containerType(containerType)
+			
+		case .internalContainerCount:
+			guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
+				throw UBJSONSerializationError.malformedContainerCount
+			}
+			return InternalUBJSONElement.containerCount(n)
+		}
+	}
+	
 	private class func isEndOfContainer(currentObjectCount: Int, declaredObjectCount: Int?, currentObject: Any?, containerEnd: InternalUBJSONElement) -> Bool {
 		if let declaredObjectCount = declaredObjectCount {
 			assert(currentObjectCount <= declaredObjectCount)
@@ -370,6 +434,19 @@ final public class UBJSONSerialization {
 		case .some(let v as Int64): return Int(v)
 		default: return nil
 		}
+	}
+	
+}
+
+
+
+private extension SimpleStream {
+	
+	func readArrayOfType<Type>(count: Int) throws -> [Type] {
+		assert(MemoryLayout<Type>.stride == MemoryLayout<Type>.size)
+		let data = try readData(size: count * MemoryLayout<Type>.size, alwaysCopyBytes: false)
+		/* Thanks https://stackoverflow.com/a/24516400/1152894 */
+		return data.withUnsafeBytes{ Array(UnsafeBufferPointer<Type>(start: $0, count: count)) }
 	}
 	
 }
