@@ -26,6 +26,11 @@ final public class UBJSONSerialization {
 		public let rawValue: Int
 		
 		/**
+		Do not convert Int8, Int16, etc. to Int. */
+		public static let keepIntPrecision = ReadingOptions(rawValue: 1 << 0)
+		func warningTodo() {let warning = "keepIntPrecision is not implemented"}
+		
+		/**
 		Allow high-precision numbers (numbers formatted as Strings). Will be
 		returned as HighPrecisionNumber, which is basically a wrapper for the
 		string-encoded value.
@@ -35,7 +40,7 @@ final public class UBJSONSerialization {
 		
 		You can use something like [BigInt](https://github.com/lorentey/BigInt) to
 		handle big integers. Note high-precision numbers can also be decimals. */
-        public static let allowHighPrecisionNumbers = ReadingOptions(rawValue: 1 << 0)
+		public static let allowHighPrecisionNumbers = ReadingOptions(rawValue: 1 << 1)
 		
 		/**
 		Allows returning the `Nop` deserialized object. By default the `No-Op`
@@ -44,7 +49,7 @@ final public class UBJSONSerialization {
 		Note this applies only to `No-Op` elements at the root of the UBJSON
 		document being deserialized. For embedded `No-Op`s, see
 		`.keepNopElementsInArrays`. */
-        public static let returnNopElements = ReadingOptions(rawValue: 2 << 0)
+		public static let returnNopElements = ReadingOptions(rawValue: 1 << 2)
 		
 		/**
 		Return `Nop` objects when receiving the serialized `No-Op` element in an
@@ -52,7 +57,7 @@ final public class UBJSONSerialization {
 		should simply be skipped: for this input, `["a", Nop, "b"]`, we should
 		return `["a", "b"]`. This option allows you to keep the `Nop` in the
 		deserialized array. */
-        public static let keepNopElementsInArrays = ReadingOptions(rawValue: 3 << 0)
+		public static let keepNopElementsInArrays = ReadingOptions(rawValue: 1 << 3)
 		
 		public init(rawValue v: Int) {
 			rawValue = v
