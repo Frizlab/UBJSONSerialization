@@ -73,7 +73,13 @@ final public class UBJSONSerialization {
 	
 	public class func ubjsonObject(with data: Data, options opt: ReadingOptions = []) throws -> Any? {
 		let simpleDataStream = SimpleDataStream(data: data)
-		return try ubjsonObject(with: simpleDataStream, options: opt)
+		let ret = try ubjsonObject(with: simpleDataStream, options: opt)
+		
+		/* Check for no garbage at end of the data */
+		let endOfData = try simpleDataStream.readDataToEnd(alwaysCopyBytes: false)
+		guard endOfData.filter({ $0 != UBJSONElementType.nop.rawValue }).count == 0 else {throw UBJSONSerializationError.garbageAtEnd}
+		
+		return ret
 	}
 	
 	public class func ubjsonObject(with stream: InputStream, options opt: ReadingOptions = []) throws -> Any? {

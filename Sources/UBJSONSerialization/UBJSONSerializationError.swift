@@ -12,6 +12,11 @@ import Foundation
 /** The UBJSON Serialization errors enum. */
 public enum UBJSONSerializationError : Error {
 	
+	/** Only when decoding from Data (as opposed to decoding from a stream), if
+	there are non-ignorable data after an element has been deserialized, this
+	error will be thrown. */
+	case garbageAtEnd
+	
 	/** An invalid element was found. The element is given in argument to this
 	enum case. */
 	case invalidElementType(UInt8)
