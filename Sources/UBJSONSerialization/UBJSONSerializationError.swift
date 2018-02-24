@@ -38,6 +38,13 @@ public enum UBJSONSerializationError : Error {
 	/** An invalid high-preicision number string was found. */
 	case invalidHighPrecisionNumber(String)
 	
+	/** An error occurred writing to the stream. */
+	case cannotWriteToStream(streamError: Error?)
+	
+	/** An invalid UBJSON object was given to be serialized. The invalid element
+	is passed in argument to this error. */
+	case invalidUBJSONObject(invalidElement: Any)
+	
 	case internalError
 	
 }

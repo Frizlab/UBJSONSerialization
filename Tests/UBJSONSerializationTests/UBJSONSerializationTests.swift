@@ -24,4 +24,16 @@ class UBJSONSerializationTests: XCTestCase {
 		XCTAssertNil(try UBJSONSerialization.ubjsonObject(with: Data("ZNN".utf8), options: []))
 	}
 	
+	func testEncodeNil() {
+		XCTAssertEqual(try UBJSONSerialization.data(withUBJSONObject: nil), Data("Z".utf8))
+	}
+	
+	func testEncodeNop() {
+		XCTAssertEqual(try UBJSONSerialization.data(withUBJSONObject: Nop()), Data("N".utf8))
+	}
+	
+	func testEncodeInt8() {
+		XCTAssertEqual(try UBJSONSerialization.data(withUBJSONObject: 42), Data(hexEncoded: "69 2A"))
+	}
+	
 }

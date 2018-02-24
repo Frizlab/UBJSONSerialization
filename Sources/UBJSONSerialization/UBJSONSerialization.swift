@@ -35,7 +35,7 @@ final public class UBJSONSerialization {
 		
 		You can use something like [BigInt](https://github.com/lorentey/BigInt) to
 		handle big integers. Note high-precision numbers can also be decimals. */
-		public static let allowHighPrecisionNumbers = ReadingOptions(rawValue: 1 << 0)
+        public static let allowHighPrecisionNumbers = ReadingOptions(rawValue: 1 << 0)
 		
 		/**
 		Allows returning the `Nop` deserialized object. By default the `No-Op`
@@ -44,7 +44,7 @@ final public class UBJSONSerialization {
 		Note this applies only to `No-Op` elements at the root of the UBJSON
 		document being deserialized. For embedded `No-Op`s, see
 		`.keepNopElementsInArrays`. */
-		public static let returnNopElements = ReadingOptions(rawValue: 2 << 0)
+        public static let returnNopElements = ReadingOptions(rawValue: 2 << 0)
 		
 		/**
 		Return `Nop` objects when receiving the serialized `No-Op` element in an
@@ -52,7 +52,7 @@ final public class UBJSONSerialization {
 		should simply be skipped: for this input, `["a", Nop, "b"]`, we should
 		return `["a", "b"]`. This option allows you to keep the `Nop` in the
 		deserialized array. */
-		public static let keepNopElementsInArrays = ReadingOptions(rawValue: 3 << 0)
+        public static let keepNopElementsInArrays = ReadingOptions(rawValue: 3 << 0)
 		
 		public init(rawValue v: Int) {
 			rawValue = v
@@ -63,7 +63,19 @@ final public class UBJSONSerialization {
 	public struct WritingOptions : OptionSet {
 		
 		public let rawValue: Int
-		/* Empty. We just create the enum in case we want to add something to it later. */
+		
+		/**
+		Normalize the representation of high precisions numbers before
+		serialization. See the doc of HighPrecisionNumber for more information
+		about normalization. */
+		public static let normalizeHighPrecisionNumbers = WritingOptions(rawValue: 1 << 0)
+		
+		/**
+		Find the smallest representation possible for the serialization of an int.
+		
+		- Note: This option is always on for `Int` objects. It has to be
+		specifically asked only for other ints types (`Int8`, `Int16`, etc.) */
+		public static let optimizeIntsForSize = WritingOptions(rawValue: 1 << 1)
 		
 		public init(rawValue v: Int) {
 			rawValue = v
@@ -117,15 +129,83 @@ final public class UBJSONSerialization {
 	}
 	
 	public class func writeUBJSONObject(_ object: Any?, to stream: OutputStream, options opt: WritingOptions = []) throws -> Int {
-		throw NSError(domain: "todo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not Implemented"])
+		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
+		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
+		
+		var size = 0
+		switch object {
+		case nil:                    size += try write(elementType: .null, toStream: stream)
+		case _ as Nop:               size += try write(elementType: .nop, toStream: stream)
+		case let b as Bool where  b: size += try write(elementType: .`true`, toStream: stream)
+		case let b as Bool where !b: size += try write(elementType: .`false`, toStream: stream)
+			
+		case var i as   Int: try write(int: &i, to: stream, options: opt, size: &size)
+		case var i as  Int8: try write(int: &i, to: stream, options: opt, size: &size)
+		case var i as UInt8: try write(int: &i, to: stream, options: opt, size: &size)
+		case var i as Int16: try write(int: &i, to: stream, options: opt, size: &size)
+		case var i as Int32: try write(int: &i, to: stream, options: opt, size: &size)
+		case var i as Int64: try write(int: &i, to: stream, options: opt, size: &size)
+			
+		case var f as Float:
+			size += try write(elementType: .float32Bits, toStream: stream)
+			size += try write(value: &f, toStream: stream)
+			
+		case var d as Double:
+			size += try write(elementType: .float64Bits, toStream: stream)
+			size += try write(value: &d, toStream: stream)
+			
+		case let h as HighPrecisionNumber:
+			let strValue = opt.contains(.normalizeHighPrecisionNumbers) ? h.normalizedStringValue : h.stringValue
+			size += try write(elementType: .highPrecisionNumber, toStream: stream)
+			size += try writeUBJSONObject(strValue, to: stream, options: opt)
+			
+		case let c as Character:
+			guard c.unicodeScalars.count == 1, let s = c.unicodeScalars.first, s.value >= 0 && s.value <= 127 else {
+				throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: c)
+			}
+			
+			var v: Int8 = Int8(s.value)
+			size += try write(elementType: .char, toStream: stream)
+			size += try write(value: &v, toStream: stream)
+			
+		case let s as String:
+			let data = Data(s.utf8)
+			size += try write(elementType: .string, toStream: stream)
+			size += try writeUBJSONObject(data.count, to: stream, options: opt)
+			data.withUnsafeBytes{ ptr in size += stream.write(ptr, maxLength: data.count) }
+			
+		case let a as [Any?]:
+			let warning = "todo (optimized formats)"
+			size += try write(elementType: .arrayStart, toStream: stream)
+			for e in a {size += try writeUBJSONObject(e, to: stream, options: opt)}
+			size += try write(elementType: .arrayEnd, toStream: stream)
+			
+		case let o as [String: Any?]:
+			let warning = "todo (optimized formats)"
+			size += try write(elementType: .objectStart, toStream: stream)
+			for (k, v) in o {
+				size += try writeUBJSONObject(k, to: stream, options: opt)
+				size += try writeUBJSONObject(v, to: stream, options: opt)
+			}
+			size += try write(elementType: .objectEnd, toStream: stream)
+			
+		default:
+			throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: object! /* nil case already processed above */)
+		}
+		return size
 	}
 	
 	public class func isValidUBJSONObject(_ obj: Any?) -> Bool {
 		switch obj {
-		case nil:                                                         return true
-		case _ as Bool, _ as Nop, _ as Int, _ as Int8, _ as UInt8:        return true
-		case _ as Int16, _ as Int32, _ as Int64, _ as Float, _ as Double: return true
-		case _ as HighPrecisionNumber, _ as Character, _ as String:       return true
+		case nil:                                                  return true
+		case _ as Bool, _ as Nop, _ as Int, _ as Int8, _ as UInt8: return true
+		case _ as Int16, _ as Int32, _ as Int64, _ as Float:       return true
+		case _ as Double, _ as HighPrecisionNumber, _ as String:   return true
+			
+		case let c as Character:
+			guard c.unicodeScalars.count == 1, let s = c.unicodeScalars.first else {return false}
+			guard s.value >= 0 && s.value <= 127 else {return false}
+			return true
 			
 		case let a as         [Any?]: return !a.contains(where: { !isValidUBJSONObject($0) })
 		case let o as [String: Any?]: return !o.contains(where: { !isValidUBJSONObject($0.value) })
@@ -236,20 +316,13 @@ final public class UBJSONSerialization {
 	
 	private class func highPrecisionNumber(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> HighPrecisionNumber {
 		guard opt.contains(.allowHighPrecisionNumbers) else {throw UBJSONSerializationError.unexpectedHighPrecisionNumber}
-		guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
-			throw UBJSONSerializationError.malformedHighPrecisionNumber
-		}
-		let numberStrData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
-		guard let str = String(data: numberStrData, encoding: .utf8) else {
-			/* We must copy the data (numberStrData is created without copying the bytes from the stream) */
-			throw UBJSONSerializationError.invalidUTF8String(Data(numberStrData))
-		}
+		let str = try string(from: simpleStream, options: opt, forcedMalformedError: .malformedHighPrecisionNumber)
 		return try HighPrecisionNumber(unparsedValue: str)
 	}
 	
-	private class func string(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> String {
+	private class func string(from simpleStream: SimpleStream, options opt: ReadingOptions, forcedMalformedError: UBJSONSerializationError? = nil) throws -> String {
 		guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
-			throw UBJSONSerializationError.malformedString
+			throw forcedMalformedError ?? UBJSONSerializationError.malformedString
 		}
 		let strData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
 		guard let str = String(data: strData, encoding: .utf8) else {
@@ -458,6 +531,118 @@ final public class UBJSONSerialization {
 		case .some(let v as Int32): return Int(v)
 		case .some(let v as Int64): return Int(v)
 		default: return nil
+		}
+	}
+	
+	private class func write<T>(value: inout T, toStream stream: OutputStream) throws -> Int {
+		let size = MemoryLayout<T>.size
+		guard size > 0 else {return 0} /* Less than probable that size is equal to zero... */
+		
+		return try withUnsafePointer(to: &value){ pointer -> Int in
+			return try pointer.withMemoryRebound(to: UInt8.self, capacity: size, { bytes -> Int in
+				let writtenSize = stream.write(bytes, maxLength: size)
+				guard size == writtenSize else {throw UBJSONSerializationError.cannotWriteToStream(streamError: stream.streamError)}
+				return size
+			})
+		}
+	}
+	
+	private class func write(elementType: UBJSONElementType, toStream stream: OutputStream) throws -> Int {
+		var t = elementType.rawValue
+		return try write(value: &t, toStream: stream)
+	}
+	
+	private class func write(int i: inout Int8, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
+		size += try write(elementType: .int8Bits, toStream: stream)
+		size += try write(value: &i, toStream: stream)
+	}
+	
+	private class func write(int i: inout UInt8, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
+		size += try write(elementType: .uint8Bits, toStream: stream)
+		size += try write(value: &i, toStream: stream)
+	}
+	
+	private class func write(int i: inout Int16, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
+		guard opt.contains(.optimizeIntsForSize) else {
+			size += try write(elementType: .int16Bits, toStream: stream)
+			size += try write(value: &i, toStream: stream)
+			return
+		}
+		
+		let optNoOptim = opt.subtracting(.optimizeIntsForSize)
+		
+		if i >= Int8.min && i <= Int8.max {
+			var i = Int8(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else if i >= UInt8.min && i <= UInt8.max {
+			var i = UInt8(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else {
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		}
+	}
+	
+	private class func write(int i: inout Int32, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
+		guard opt.contains(.optimizeIntsForSize) else {
+			size += try write(elementType: .int32Bits, toStream: stream)
+			size += try write(value: &i, toStream: stream)
+			return
+		}
+		
+		let optNoOptim = opt.subtracting(.optimizeIntsForSize)
+		
+		if i >= Int16.min && i <= Int16.max {
+			var i = Int16(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else {
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		}
+	}
+	
+	private class func write(int i: inout Int64, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
+		guard opt.contains(.optimizeIntsForSize) else {
+			size += try write(elementType: .int32Bits, toStream: stream)
+			size += try write(value: &i, toStream: stream)
+			return
+		}
+		
+		let optNoOptim = opt.subtracting(.optimizeIntsForSize)
+		
+		if i >= Int32.min && i <= Int32.max {
+			var i = Int32(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else {
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		}
+	}
+	
+	private class func write(int i: inout Int, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
+		precondition(Int.max == Int64.max)
+		
+		let optNoOptim = opt.subtracting(.optimizeIntsForSize)
+		
+		/* We check all the sizes directly in the method for the Int case (as
+		 * opposed to the Int64 case for instance where the Int32 case is checked,
+		 * but the Int16 case is checked in the Int32 function).
+		 *
+		 * The Int case is most likely to be the most common, so we want it to be
+		 * as straightforward and fast as possible. */
+		
+		if i >= Int8.min && i <= Int8.max {
+			var i = Int8(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else if i >= UInt8.min && i <= UInt8.max {
+			var i = UInt8(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else if i >= Int16.min && i <= Int16.max {
+			var i = Int16(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else if i >= Int32.min && i <= Int32.max {
+			var i = Int32(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
+		} else {
+			var i = Int64(i)
+			try write(int: &i, to: stream, options: optNoOptim, size: &size)
 		}
 	}
 	
