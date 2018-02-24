@@ -17,8 +17,10 @@ var tests: [XCTestCaseEntry] = [
 	testCase([
 	]),
 	testCase([
+		("testGarbageAtEndError", UBJSONSerializationTests.testGarbageAtEndError),
 		("testDecodeNil", UBJSONSerializationTests.testDecodeNil),
 		("testDecodeNop", UBJSONSerializationTests.testDecodeNop),
+		("testNopSkipping", UBJSONSerializationTests.testNopSkipping),
 	]),
 ]
 XCTMain(tests)
