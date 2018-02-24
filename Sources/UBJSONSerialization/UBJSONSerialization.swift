@@ -28,7 +28,6 @@ final public class UBJSONSerialization {
 		/**
 		Do not convert Int8, Int16, etc. to Int. */
 		public static let keepIntPrecision = ReadingOptions(rawValue: 1 << 0)
-		func warningTodo() {let warning = "keepIntPrecision is not implemented"}
 		
 		/**
 		Allow high-precision numbers (numbers formatted as Strings). Will be
@@ -113,6 +112,7 @@ final public class UBJSONSerialization {
 		/* We assume Swift will continue to use the IEEE 754 spec for representing
 		 * floats and doubles forever. Use of the spec validated in August 2017
 		 * by @jckarter: https://twitter.com/jckarter/status/900073525905506304 */
+		precondition(Int.max == Int64.max, "I currently need Int to be Int64")
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
 		/* TODO: Handle endianness! UBSJON is big endian. */
@@ -134,6 +134,7 @@ final public class UBJSONSerialization {
 	}
 	
 	public class func writeUBJSONObject(_ object: Any?, to stream: OutputStream, options opt: WritingOptions = []) throws -> Int {
+		precondition(Int.max == Int64.max, "I currently need Int to be Int64")
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
 		
@@ -353,11 +354,11 @@ final public class UBJSONSerialization {
 			case .`true`:  return [Bool](repeating: true,  count: c)
 			case .`false`: return [Bool](repeating: false, count: c)
 				
-			case .int8Bits:    let ret:   [Int8] = try simpleStream.readArrayOfType(count: c); return ret
-			case .uint8Bits:   let ret:  [UInt8] = try simpleStream.readArrayOfType(count: c); return ret
-			case .int16Bits:   let ret:  [Int16] = try simpleStream.readArrayOfType(count: c); return ret
-			case .int32Bits:   let ret:  [Int32] = try simpleStream.readArrayOfType(count: c); return ret
-			case .int64Bits:   let ret:  [Int64] = try simpleStream.readArrayOfType(count: c); return ret
+			case .int8Bits:    let ret:   [Int8] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
+			case .uint8Bits:   let ret:  [UInt8] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
+			case .int16Bits:   let ret:  [Int16] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
+			case .int32Bits:   let ret:  [Int32] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
+			case .int64Bits:   let ret:  [Int64] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
 			case .float32Bits: let ret:  [Float] = try simpleStream.readArrayOfType(count: c); return ret
 			case .float64Bits: let ret: [Double] = try simpleStream.readArrayOfType(count: c); return ret
 				
@@ -474,11 +475,11 @@ final public class UBJSONSerialization {
 		case .`true`:  return true
 		case .`false`: return false
 			
-		case .int8Bits:    let ret:   Int8 = try simpleStream.readType(); return ret
-		case .uint8Bits:   let ret:  UInt8 = try simpleStream.readType(); return ret
-		case .int16Bits:   let ret:  Int16 = try simpleStream.readType(); return ret
-		case .int32Bits:   let ret:  Int32 = try simpleStream.readType(); return ret
-		case .int64Bits:   let ret:  Int64 = try simpleStream.readType(); return ret
+		case .int8Bits:    let ret:   Int8 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .uint8Bits:   let ret:  UInt8 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int16Bits:   let ret:  Int16 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int32Bits:   let ret:  Int32 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int64Bits:   let ret:  Int64 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
 		case .float32Bits: let ret:  Float = try simpleStream.readType(); return ret
 		case .float64Bits: let ret: Double = try simpleStream.readType(); return ret
 			
@@ -622,8 +623,6 @@ final public class UBJSONSerialization {
 	}
 	
 	private class func write(int i: inout Int, to stream: OutputStream, options opt: WritingOptions, size: inout Int) throws {
-		precondition(Int.max == Int64.max)
-		
 		let optNoOptim = opt.subtracting(.optimizeIntsForSize)
 		
 		/* We check all the sizes directly in the method for the Int case (as
