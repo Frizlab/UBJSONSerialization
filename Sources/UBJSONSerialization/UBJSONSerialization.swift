@@ -340,8 +340,8 @@ final public class UBJSONSerialization {
 		return try HighPrecisionNumber(unparsedValue: str)
 	}
 	
-	private class func string(from simpleStream: SimpleStream, options opt: ReadingOptions, forcedMalformedError: UBJSONSerializationError? = nil) throws -> String {
-		guard let n = intValue(from: try ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
+	private class func string(from simpleStream: SimpleStream, options opt: ReadingOptions, forcedMalformedError: UBJSONSerializationError? = nil, prereadSizeElement: Any?? = nil) throws -> String {
+		guard let n = intValue(from: try prereadSizeElement ?? ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
 			throw forcedMalformedError ?? UBJSONSerializationError.malformedString
 		}
 		let strData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
@@ -357,9 +357,9 @@ final public class UBJSONSerialization {
 		let subParseOptWithNop = opt.union(.returnNopElements)
 		
 		var declaredObjectCount: Int?
-		var curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+		var curObj: Any?? = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
 		switch curObj {
-		case .some(InternalUBJSONElement.containerType(let t)):
+		case InternalUBJSONElement.containerType(let t)??:
 			guard let countType = try ubjsonObject(with: simpleStream, options: subParseOptWithNop) as? InternalUBJSONElement, case .containerCount(let c) = countType else {
 				throw UBJSONSerializationError.malformedArray
 			}
@@ -400,16 +400,17 @@ final public class UBJSONSerialization {
 			}
 			fatalError()
 			
-		case .some(InternalUBJSONElement.containerCount(let c)):
-			curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+		case InternalUBJSONElement.containerCount(let c)??:
 			declaredObjectCount = c
+			curObj = nil
 			
 		default: (/*nop*/)
 		}
 		
 		var objectCount = 0
 		while !isEndOfContainer(currentObjectCount: objectCount, declaredObjectCount: declaredObjectCount, currentObject: curObj, containerEnd: .arrayEnd) {
-			switch curObj {
+			let v = try curObj ?? ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+			switch v {
 			case .some(_ as InternalUBJSONElement):
 				/* Always an error as the arrayEnd case is detected earlier in
 				 * the isEndOfContainer method */
@@ -421,10 +422,12 @@ final public class UBJSONSerialization {
 				}
 				
 			default:
-				res.append(curObj)
+				res.append(v)
 				objectCount += 1
 			}
-			curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+			
+			/* Prepare end array detection */
+			curObj = (declaredObjectCount == nil ? .some(try ubjsonObject(with: simpleStream, options: subParseOptWithNop)) : nil)
 		}
 		return res
 	}
@@ -434,47 +437,61 @@ final public class UBJSONSerialization {
 		let subParseOptNoNop = opt.subtracting(.returnNopElements)
 		let subParseOptWithNop = opt.union(.returnNopElements)
 		
+		var curObj: Any??
 		var declaredObjectCount: Int?
-		var curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
-		switch curObj {
-		case .some(InternalUBJSONElement.containerType(let t)):
-			guard let countType = try ubjsonObject(with: simpleStream, options: subParseOptWithNop) as? InternalUBJSONElement, case .containerCount(let c) = countType else {
+		let type = try self.elementType(from: simpleStream, allowNop: true)
+		switch type {
+		case .internalContainerType:
+			/* The object is optimized with a type and a count. */
+			let containerType = try element(from: simpleStream, type: type, options: subParseOptWithNop) as! InternalUBJSONElement
+			guard
+				case .containerType(let t) = containerType,
+				let containerCount = try ubjsonObject(with: simpleStream, options: subParseOptWithNop) as? InternalUBJSONElement,
+				case .containerCount(let c) = containerCount
+			else {
 				throw UBJSONSerializationError.malformedObject
 			}
 			
 			var ret = [String: Any?]()
 			for _ in 0..<c {
-				let k = try string(from: simpleStream, options: subParseOptNoNop)
+				let k = try string(from: simpleStream, options: subParseOptNoNop, forcedMalformedError: .malformedObject)
 				let v = try element(from: simpleStream, type: t, options: subParseOptNoNop)
 				ret[k] = v
 			}
 			return ret
 			
-		case .some(InternalUBJSONElement.containerCount(let c)):
-			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+		case .internalContainerCount:
+			/* Object optimized with a count only. */
+			let containerCount = try element(from: simpleStream, type: type, options: subParseOptWithNop) as! InternalUBJSONElement
+			guard case .containerCount(let c) = containerCount else {throw UBJSONSerializationError.internalError}
 			declaredObjectCount = c
 			
-		case .some(_ as Nop):
-			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
-			
-		default: (/*nop*/)
+		default:
+			/* If the object is unoptimized, we must read the first object so we
+			 * can determine whether the end of the object has been reached. Also,
+			 * if we don't read the element, we will probably have parsed half an
+			 * element (type is parsed, but not the value). */
+			curObj = try element(from: simpleStream, type: type, options: subParseOptWithNop)
 		}
 		
 		var objectCount = 0
 		while !isEndOfContainer(currentObjectCount: objectCount, declaredObjectCount: declaredObjectCount, currentObject: curObj, containerEnd: .objectEnd) {
-			guard let key = curObj as? String else {throw UBJSONSerializationError.malformedObject}
-			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
-			switch curObj {
+			let key = try string(from: simpleStream, options: subParseOptWithNop, forcedMalformedError: .malformedObject, prereadSizeElement: curObj)
+			
+			let value = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+			switch value {
 			case .some(_ as InternalUBJSONElement):
 				/* Always an error as the objectEnd case is detected earlier in
 				 * the isEndOfContainer method */
 				throw UBJSONSerializationError.malformedObject
 				
 			default:
-				res[key] = curObj
+				res[key] = value
 				objectCount += 1
 			}
-			curObj = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+			
+			/* Prepare end object detection */
+			curObj = (declaredObjectCount == nil ? .some(try ubjsonObject(with: simpleStream, options: subParseOptNoNop)) : nil)
 		}
 		return res
 	}
@@ -533,12 +550,17 @@ final public class UBJSONSerialization {
 		}
 	}
 	
-	private class func isEndOfContainer(currentObjectCount: Int, declaredObjectCount: Int?, currentObject: Any?, containerEnd: InternalUBJSONElement) -> Bool {
+	/** Determine whether the end of the container has been reached with a given
+	set of parameter.
+	
+	If the declared object count is nil (was not declared in the container), the
+	current object must not be nil. (Can be .some(nil), though!) */
+	private class func isEndOfContainer(currentObjectCount: Int, declaredObjectCount: Int?, currentObject: Any??, containerEnd: InternalUBJSONElement) -> Bool {
 		if let declaredObjectCount = declaredObjectCount {
 			assert(currentObjectCount <= declaredObjectCount)
 			return currentObjectCount == declaredObjectCount
 		} else {
-			return currentObject == containerEnd
+			return currentObject! == containerEnd
 		}
 	}
 	
