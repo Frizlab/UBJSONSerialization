@@ -186,7 +186,7 @@ final public class UBJSONSerialization {
 		case let h as HighPrecisionNumber:
 			let strValue = opt.contains(.normalizeHighPrecisionNumbers) ? h.normalizedStringValue : h.stringValue
 			size += try write(elementType: .highPrecisionNumber, toStream: stream)
-            size += try writeUBJSONObject(strValue, to: stream, options: opt)
+			size += try write(stringNoMarker: strValue, to: stream, options: opt)
 			
 		case let c as Character:
 			guard c.unicodeScalars.count == 1, let s = c.unicodeScalars.first, s.value >= 0 && s.value <= 127 else {
