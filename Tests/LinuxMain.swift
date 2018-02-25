@@ -25,6 +25,9 @@ var tests: [XCTestCaseEntry] = [
 		("testEncodeNop", UBJSONSerializationTests.testEncodeNop),
 		("testEncodeInt8", UBJSONSerializationTests.testEncodeInt8),
 		("testEncodeOptimizedArrayOfInts", UBJSONSerializationTests.testEncodeOptimizedArrayOfInts),
+		("testEncodeSimpleObject", UBJSONSerializationTests.testEncodeSimpleObject),
+		("testDecodeSimpleObject", UBJSONSerializationTests.testDecodeSimpleObject),
+		("testDecodeBigOptimizedArray", UBJSONSerializationTests.testDecodeBigOptimizedArray),
 	]),
 ]
 XCTMain(tests)
