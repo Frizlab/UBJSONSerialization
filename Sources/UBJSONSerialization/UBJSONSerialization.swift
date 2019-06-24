@@ -115,23 +115,23 @@ final public class UBJSONSerialization {
 		let ret = try ubjsonObject(with: simpleDataStream, options: opt)
 		
 		/* Check for no garbage at end of the data */
-		let endOfData = try simpleDataStream.readDataToEnd(alwaysCopyBytes: false)
+		let endOfData = try simpleDataStream.readDataToEnd()
 		guard endOfData.filter({ $0 != UBJSONElementType.nop.rawValue }).count == 0 else {throw UBJSONSerializationError.garbageAtEnd}
 		
 		return ret
 	}
 	
 	public class func ubjsonObject(with stream: InputStream, options opt: ReadingOptions = []) throws -> Any? {
-		let simpleInputStream = SimpleInputStream(stream: stream, bufferSize: 1024*1024, streamReadSizeLimit: nil)
+		let simpleInputStream = SimpleInputStream(stream: stream, bufferSize: 1024*1024, bufferSizeIncrement: 1024, streamReadSizeLimit: nil)
 		return try ubjsonObject(with: simpleInputStream, options: opt)
 	}
 	
-	/* Note: We're using the SimpleStream method instead of InputStream for
+	/* Note: We're using the SimpleReadStream method instead of InputStream for
 	 *       conveninence, but using InputStream directly would probably be
 	 *       faster. Also we don't need all of the “clever” bits of SimpleStream,
 	 *       so one day we should migrate, or at least measure the performances
 	 *       of both. */
-	class func ubjsonObject(with simpleStream: SimpleStream, options opt: ReadingOptions = []) throws -> Any? {
+	class func ubjsonObject(with simpleStream: SimpleReadStream, options opt: ReadingOptions = []) throws -> Any? {
 		/* We assume Swift will continue to use the IEEE 754 spec for representing
 		 * floats and doubles forever. Use of the spec validated in August 2017
 		 * by @jckarter: https://twitter.com/jckarter/status/900073525905506304 */
@@ -322,7 +322,7 @@ final public class UBJSONSerialization {
 		
 	}
 	
-	private class func elementType(from simpleStream: SimpleStream, allowNop: Bool) throws -> UBJSONElementType {
+	private class func elementType(from simpleStream: SimpleReadStream, allowNop: Bool) throws -> UBJSONElementType {
 		var curElementType: UBJSONElementType
 		repeat {
 			let intType: UInt8 = try simpleStream.readType()
@@ -334,25 +334,24 @@ final public class UBJSONSerialization {
 		return curElementType
 	}
 	
-	private class func highPrecisionNumber(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> HighPrecisionNumber {
+	private class func highPrecisionNumber(from simpleStream: SimpleReadStream, options opt: ReadingOptions) throws -> HighPrecisionNumber {
 		guard opt.contains(.allowHighPrecisionNumbers) else {throw UBJSONSerializationError.unexpectedHighPrecisionNumber}
 		let str = try string(from: simpleStream, options: opt, forcedMalformedError: .malformedHighPrecisionNumber)
 		return try HighPrecisionNumber(unparsedValue: str)
 	}
 	
-	private class func string(from simpleStream: SimpleStream, options opt: ReadingOptions, forcedMalformedError: UBJSONSerializationError? = nil, prereadSizeElement: Any?? = nil) throws -> String {
+	private class func string(from simpleStream: SimpleReadStream, options opt: ReadingOptions, forcedMalformedError: UBJSONSerializationError? = nil, prereadSizeElement: Any?? = nil) throws -> String {
 		guard let n = intValue(from: try prereadSizeElement ?? ubjsonObject(with: simpleStream, options: opt.union(.returnNopElements))) else {
 			throw forcedMalformedError ?? UBJSONSerializationError.malformedString
 		}
-		let strData = try simpleStream.readData(size: n, alwaysCopyBytes: false)
+		let strData = try simpleStream.readData(size: n)
 		guard let str = String(data: strData, encoding: .utf8) else {
-			/* We must copy the data (numberStrData is created without copying the bytes from the stream) */
-			throw UBJSONSerializationError.invalidUTF8String(Data(strData))
+			throw UBJSONSerializationError.invalidUTF8String(strData)
 		}
 		return str
 	}
 	
-	private class func array(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> [Any?] {
+	private class func array(from simpleStream: SimpleReadStream, options opt: ReadingOptions) throws -> [Any?] {
 		var res = [Any?]()
 		let subParseOptWithNop = opt.union(.returnNopElements)
 		
@@ -368,11 +367,11 @@ final public class UBJSONSerialization {
 			case .`true`:  return [Bool](repeating: true,  count: c)
 			case .`false`: return [Bool](repeating: false, count: c)
 				
-			case .int8Bits:    let ret:   [Int8] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
-			case .uint8Bits:   let ret:  [UInt8] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
-			case .int16Bits:   let ret:  [Int16] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
-			case .int32Bits:   let ret:  [Int32] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
-			case .int64Bits:   let ret:  [Int64] = try simpleStream.readArrayOfType(count: c); return opt.contains(.keepIntPrecision) ? ret : ret.map{ Int($0) }
+			case .int8Bits:    let ret:   [Int8] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
+			case .uint8Bits:   let ret:  [UInt8] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
+			case .int16Bits:   let ret:  [Int16] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
+			case .int32Bits:   let ret:  [Int32] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
+			case .int64Bits:   let ret:  [Int64] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
 			case .float32Bits: let ret:  [Float] = try simpleStream.readArrayOfType(count: c); return ret
 			case .float64Bits: let ret: [Double] = try simpleStream.readArrayOfType(count: c); return ret
 				
@@ -398,7 +397,6 @@ final public class UBJSONSerialization {
 			case .nop, .arrayEnd, .objectEnd, .internalContainerType, .internalContainerCount:
 				fatalError()
 			}
-			fatalError()
 			
 		case InternalUBJSONElement.containerCount(let c)??:
 			declaredObjectCount = c
@@ -432,7 +430,7 @@ final public class UBJSONSerialization {
 		return res
 	}
 	
-	private class func object(from simpleStream: SimpleStream, options opt: ReadingOptions) throws -> [String: Any?] {
+	private class func object(from simpleStream: SimpleReadStream, options opt: ReadingOptions) throws -> [String: Any?] {
 		var res = [String: Any?]()
 		let subParseOptNoNop = opt.subtracting(.returnNopElements)
 		let subParseOptWithNop = opt.union(.returnNopElements)
@@ -496,7 +494,7 @@ final public class UBJSONSerialization {
 		return res
 	}
 	
-	private class func element(from simpleStream: SimpleStream, type elementType: UBJSONElementType, options opt: ReadingOptions) throws -> Any? {
+	private class func element(from simpleStream: SimpleReadStream, type elementType: UBJSONElementType, options opt: ReadingOptions) throws -> Any? {
 		switch elementType {
 		case .nop:
 			assert(opt.contains(.returnNopElements))
@@ -576,21 +574,22 @@ final public class UBJSONSerialization {
 		}
 	}
 	
-	private class func write(dataPtr: UnsafePointer<UInt8>, size: Int, to stream: OutputStream) throws -> Int {
-		let writtenSize = stream.write(dataPtr, maxLength: size)
-		guard size == writtenSize else {throw UBJSONSerializationError.cannotWriteToStream(streamError: stream.streamError)}
-		return size
+	private class func write(dataPtr: UnsafeRawBufferPointer, to stream: OutputStream) throws -> Int {
+		guard dataPtr.count > 0 else {return 0}
+		
+		let bound = dataPtr.bindMemory(to: UInt8.self)
+		let writtenSize = stream.write(bound.baseAddress!, maxLength: dataPtr.count)
+		guard writtenSize == dataPtr.count else {throw UBJSONSerializationError.cannotWriteToStream(streamError: stream.streamError)}
+		return dataPtr.count
 	}
 	
 	private class func write<T>(value: inout T, toStream stream: OutputStream) throws -> Int {
 		let size = MemoryLayout<T>.size
-		guard size > 0 else {return 0} /* Less than probable that size is equal to zero... */
+		guard size > 0 else {return 0} /* Void size is 0 */
 		
-		return try withUnsafePointer(to: &value){ pointer -> Int in
-			return try pointer.withMemoryRebound(to: UInt8.self, capacity: size, { bytes -> Int in
-				return try write(dataPtr: bytes, size: size, to: stream)
-			})
-		}
+		return try withUnsafePointer(to: &value, { pointer -> Int in
+			return try write(dataPtr: UnsafeRawBufferPointer(UnsafeBufferPointer<T>(start: pointer, count: 1)), to: stream)
+		})
 	}
 	
 	private class func write(elementType: UBJSONElementType, toStream stream: OutputStream) throws -> Int {
@@ -602,7 +601,7 @@ final public class UBJSONSerialization {
 		var size = 0
 		let data = Data(s.utf8)
 		size += try writeUBJSONObject(data.count, to: stream, options: opt)
-		try data.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, size: data.count, to: stream) }
+		try data.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
 		return size
 	}
 	
@@ -699,13 +698,13 @@ final public class UBJSONSerialization {
 				
 			case .null, .`true`, .`false`: (/*nop*/)
 				
-			case .int8Bits:    try a.map{  int8(from: $0!) }.withUnsafeBytes{         ptr in size += try write(dataPtr: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), size: ptr.count, to: stream) }
-			case .uint8Bits:   try a.map{ uint8(from: $0!) }.withUnsafeBufferPointer{ ptr in size += try write(dataPtr: ptr.baseAddress!, size: ptr.count, to: stream) }
-			case .int16Bits:   try a.map{ int16(from: $0!) }.withUnsafeBytes{         ptr in size += try write(dataPtr: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), size: ptr.count, to: stream) }
-			case .int32Bits:   try a.map{ int32(from: $0!) }.withUnsafeBytes{         ptr in size += try write(dataPtr: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), size: ptr.count, to: stream) }
-			case .int64Bits:   try a.map{ int64(from: $0!) }.withUnsafeBytes{         ptr in size += try write(dataPtr: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), size: ptr.count, to: stream) }
-			case .float32Bits: try (a as! [Float]).withUnsafeBytes{         ptr in size += try write(dataPtr: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), size: ptr.count, to: stream) }
-			case .float64Bits: try (a as! [Double]).withUnsafeBytes{        ptr in size += try write(dataPtr: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), size: ptr.count, to: stream) }
+			case .int8Bits:    try a.map{  int8(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+			case .uint8Bits:   try a.map{ uint8(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+			case .int16Bits:   try a.map{ int16(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+			case .int32Bits:   try a.map{ int32(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+			case .int64Bits:   try a.map{ int64(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+			case .float32Bits: try (a as! [Float]).withUnsafeBytes{  ptr in size += try write(dataPtr: ptr, to: stream) }
+			case .float64Bits: try (a as! [Double]).withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
 				
 			case .highPrecisionNumber:
 				try (a as! [HighPrecisionNumber]).forEach{ h in
@@ -720,7 +719,7 @@ final public class UBJSONSerialization {
 					}
 					return Int8(s.value)
 				}
-				try charsAsInts.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr.baseAddress!.assumingMemoryBound(to: UInt8.self), size: ptr.count, to: stream) }
+				try charsAsInts.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
 				
 			case .string:
 				try (a as! [String]).forEach{ s in size += try write(stringNoMarker: s, to: stream, options: opt) }
@@ -810,9 +809,9 @@ final public class UBJSONSerialization {
 	
 	private class func dropNopRecursively(element e: Any?) -> Any?? {
 		if e is Nop {return nil}
-		if let a = e as? [Any?] {return .some(a.flatMap(dropNopRecursively))}
+		if let a = e as? [Any?] {return .some(a.compactMap(dropNopRecursively))}
 		if let o = e as? [String: Any?] {
-			return .some(Dictionary(uniqueKeysWithValues: o.flatMap{ (_ t: (key: String, value: Any?)) -> (String, Any?)? in
+			return .some(Dictionary(uniqueKeysWithValues: o.compactMap{ (_ t: (key: String, value: Any?)) -> (String, Any?)? in
 				guard let v = dropNopRecursively(element: t.value) else {return nil}
 				return (t.key, v)
 			}))
@@ -935,13 +934,15 @@ final public class UBJSONSerialization {
 
 
 
-private extension SimpleStream {
+private extension SimpleReadStream {
 	
 	func readArrayOfType<Type>(count: Int) throws -> [Type] {
 		assert(MemoryLayout<Type>.stride == MemoryLayout<Type>.size)
-		let data = try readData(size: count * MemoryLayout<Type>.size, alwaysCopyBytes: false)
-		/* Thanks https://stackoverflow.com/a/24516400/1152894 */
-		return data.withUnsafeBytes{ Array(UnsafeBufferPointer<Type>(start: $0, count: count)) }
+		/* Adapted (and upgraded) from https://stackoverflow.com/a/24516400 */
+		return try readData(size: count * MemoryLayout<Type>.size, { bytes in
+			let bound = bytes.bindMemory(to: Type.self)
+			return Array(bound)
+		})
 	}
 	
 }

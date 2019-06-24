@@ -117,7 +117,7 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 			if unsignedIntPart.count == 1 {normalizedUnsignedIntStringPart = unsignedIntPart[0].rawValue}
 			else {
 				var hasSeenNonZero = false
-				normalizedUnsignedIntStringPart = unsignedIntPart.flatMap{
+				normalizedUnsignedIntStringPart = unsignedIntPart.compactMap{
 					hasSeenNonZero = (hasSeenNonZero || $0 != .d0)
 					return hasSeenNonZero ? $0.rawValue : nil
 				}.joined()
@@ -134,8 +134,6 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 	public let exponentPart: NoExponentHighPrecisionInt?
 	
 	public let normalizedStringValue: String
-	
-	public let hashValue: Int
 	
 	public init(unparsedValue: String) throws {
 		stringValue = unparsedValue
@@ -169,7 +167,10 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 		}
 		
 		normalizedStringValue = normalizedStringValueBuilding
-		hashValue = normalizedStringValue.hashValue
+	}
+	
+	public func hash(into hasher: inout Hasher) {
+		hasher.combine(normalizedStringValue)
 	}
 	
 	public static func ==(lhs: HighPrecisionNumber, rhs: HighPrecisionNumber) -> Bool {
