@@ -1,10 +1,10 @@
 # UBJSONSerialization
 
-UBJSON Serialization in native Swift 4
+UBJSON Serialization in native Swift 4.2
 
 ## Installation & Compatibility
 The recommended (and only tested) way to install and use UBJSONSerialization is
-via `SwiftPM`, using at least Swift 4.
+via `SwiftPM`, using at least Swift 4.2.
 
 The content of your `Package.swift` should be something resembling:
 ```swift
@@ -12,7 +12,7 @@ import PackageDescription
 
 let package = Package(
 	name: "myawesomeproject",
-	dependencies: [.package(url: "https://github.com/Frizlab/UBJSONSerialization.git", from: "1.0.0")],
+	dependencies: [.package(url: "https://github.com/Frizlab/UBJSONSerialization.git", from: "1.0.1")],
 	targets: [.target(name: "myawesomeproject", dependencies: ["UBJSONSerialization"])]
 )
 ```
