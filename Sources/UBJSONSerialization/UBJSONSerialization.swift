@@ -116,7 +116,7 @@ final public class UBJSONSerialization {
 		
 		/* Check for no garbage at end of the data */
 		let endOfData = try simpleDataStream.readDataToEnd()
-		guard endOfData.filter({ $0 != UBJSONElementType.nop.rawValue }).count == 0 else {throw UBJSONSerializationError.garbageAtEnd}
+		guard endOfData.first(where: { $0 != UBJSONElementType.nop.rawValue }) == nil else {throw UBJSONSerializationError.garbageAtEnd}
 		
 		return ret
 	}
