@@ -166,11 +166,11 @@ final public class UBJSONSpec8Serialization {
 			
 		case var f as Float:
 			size += try write(elementType: .float32Bits, toStream: stream)
-			size += try _write(value: &f, toStream: stream)
+			size += try stream.write(value: &f)
 			
 		case var d as Double:
 			size += try write(elementType: .float64Bits, toStream: stream)
-			size += try _write(value: &d, toStream: stream)
+			size += try stream.write(value: &d)
 			
 		case let h as HighPrecisionNumber:
 			let strValue = opt.contains(.normalizeHighPrecisionNumbers) ? h.normalizedStringValue : h.stringValue
@@ -506,7 +506,7 @@ final public class UBJSONSpec8Serialization {
 	
 	private class func write(elementType: UBJSONSpec8ElementType, toStream stream: OutputStream) throws -> Int {
 		var t = elementType.rawValue
-		return try _write(value: &t, toStream: stream)
+		return try stream.write(value: &t)
 	}
 	
 	private class func write(string s: String, shortStringMarker: UBJSONSpec8ElementType, longStringMarker: UBJSONSpec8ElementType, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
@@ -515,20 +515,20 @@ final public class UBJSONSpec8Serialization {
 		if data.count <= 254 {
 			var sizeInt8 = Int8(data.count)
 			size += try write(elementType: shortStringMarker, toStream: stream)
-			size += try _write(value: &sizeInt8, toStream: stream)
+			size += try stream.write(value: &sizeInt8)
 		} else {
 			var sizeInt32 = Int32(data.count)
 			size += try write(elementType: longStringMarker, toStream: stream)
-			size += try _write(value: &sizeInt32, toStream: stream)
+			size += try stream.write(value: &sizeInt32)
 		}
-		try data.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+		try data.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
 		return size
 	}
 	
 	private class func write(int i: inout Int8, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		size += try write(elementType: .int8Bits, toStream: stream)
-		size += try _write(value: &i, toStream: stream)
+		size += try stream.write(value: &i)
 		return size
 	}
 	
@@ -536,7 +536,7 @@ final public class UBJSONSpec8Serialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int16Bits, toStream: stream)
-			size += try _write(value: &i, toStream: stream)
+			size += try stream.write(value: &i)
 			return size
 		}
 		
@@ -550,7 +550,7 @@ final public class UBJSONSpec8Serialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int32Bits, toStream: stream)
-			size += try _write(value: &i, toStream: stream)
+			size += try stream.write(value: &i)
 			return size
 		}
 		
@@ -564,7 +564,7 @@ final public class UBJSONSpec8Serialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int64Bits, toStream: stream)
-			size += try _write(value: &i, toStream: stream)
+			size += try stream.write(value: &i)
 			return size
 		}
 		
@@ -601,17 +601,17 @@ final public class UBJSONSpec8Serialization {
 		if isIndeterminateSize {
 			var s: UInt8 = 255
 			size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-			size += try _write(value: &s, toStream: stream)
+			size += try stream.write(value: &s)
 		} else {
 			let c = a.count
 			if c <= 254 {
 				var s = UInt8(c)
 				size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-				size += try _write(value: &s, toStream: stream)
+				size += try stream.write(value: &s)
 			} else {
 				var s = UInt32(c)
 				size += try write(elementType: .arrayStartSizeOn4Bytes, toStream: stream)
-				size += try _write(value: &s, toStream: stream)
+				size += try stream.write(value: &s)
 			}
 		}
 		
@@ -631,17 +631,17 @@ final public class UBJSONSpec8Serialization {
 		if isIndeterminateSize {
 			var s: UInt8 = 255
 			size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-			size += try _write(value: &s, toStream: stream)
+			size += try stream.write(value: &s)
 		} else {
 			let c = o.count
 			if c <= 254 {
 				var s = UInt8(c)
 				size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-				size += try _write(value: &s, toStream: stream)
+				size += try stream.write(value: &s)
 			} else {
 				var s = UInt32(c)
 				size += try write(elementType: .arrayStartSizeOn4Bytes, toStream: stream)
-				size += try _write(value: &s, toStream: stream)
+				size += try stream.write(value: &s)
 			}
 		}
 		

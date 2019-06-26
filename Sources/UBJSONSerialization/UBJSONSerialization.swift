@@ -175,11 +175,11 @@ final public class UBJSONSerialization {
 			
 		case var f as Float:
 			size += try write(elementType: .float32Bits, toStream: stream)
-			size += try _write(value: &f, toStream: stream)
+			size += try stream.write(value: &f)
 			
 		case var d as Double:
 			size += try write(elementType: .float64Bits, toStream: stream)
-			size += try _write(value: &d, toStream: stream)
+			size += try stream.write(value: &d)
 			
 		case let h as HighPrecisionNumber:
 			let strValue = opt.contains(.normalizeHighPrecisionNumbers) ? h.normalizedStringValue : h.stringValue
@@ -193,7 +193,7 @@ final public class UBJSONSerialization {
 			
 			var v: Int8 = Int8(s.value)
 			size += try write(elementType: .char, toStream: stream)
-			size += try _write(value: &v, toStream: stream)
+			size += try stream.write(value: &v)
 			
 		case let s as String:
 			size += try write(elementType: .string, toStream: stream)
@@ -655,28 +655,28 @@ final public class UBJSONSerialization {
 	
 	private class func write(elementType: UBJSONElementType, toStream stream: OutputStream) throws -> Int {
 		var t = elementType.rawValue
-		return try _write(value: &t, toStream: stream)
+		return try stream.write(value: &t)
 	}
 	
 	private class func write(stringNoMarker s: String, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		let data = Data(s.utf8)
 		size += try writeUBJSONObject(data.count, to: stream, options: opt)
-		try data.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+		try data.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
 		return size
 	}
 	
 	private class func write(int i: inout Int8, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		size += try write(elementType: .int8Bits, toStream: stream)
-		size += try _write(value: &i, toStream: stream)
+		size += try stream.write(value: &i)
 		return size
 	}
 	
 	private class func write(int i: inout UInt8, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		size += try write(elementType: .uint8Bits, toStream: stream)
-		size += try _write(value: &i, toStream: stream)
+		size += try stream.write(value: &i)
 		return size
 	}
 	
@@ -684,7 +684,7 @@ final public class UBJSONSerialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int16Bits, toStream: stream)
-			size += try _write(value: &i, toStream: stream)
+			size += try stream.write(value: &i)
 			return size
 		}
 		
@@ -699,7 +699,7 @@ final public class UBJSONSerialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int32Bits, toStream: stream)
-			size += try _write(value: &i, toStream: stream)
+			size += try stream.write(value: &i)
 			return size
 		}
 		
@@ -713,7 +713,7 @@ final public class UBJSONSerialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int64Bits, toStream: stream)
-			size += try _write(value: &i, toStream: stream)
+			size += try stream.write(value: &i)
 			return size
 		}
 		
@@ -759,13 +759,13 @@ final public class UBJSONSerialization {
 				
 			case .null, .`true`, .`false`: (/*nop*/)
 				
-			case .int8Bits:    try a.map{  int8(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
-			case .uint8Bits:   try a.map{ uint8(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
-			case .int16Bits:   try a.map{ int16(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
-			case .int32Bits:   try a.map{ int32(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
-			case .int64Bits:   try a.map{ int64(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
-			case .float32Bits: try (a as! [Float]).withUnsafeBytes{  ptr in size += try _write(dataPtr: ptr, to: stream) }
-			case .float64Bits: try (a as! [Double]).withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+			case .int8Bits:    try a.map{  int8(from: $0!) }.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
+			case .uint8Bits:   try a.map{ uint8(from: $0!) }.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
+			case .int16Bits:   try a.map{ int16(from: $0!) }.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
+			case .int32Bits:   try a.map{ int32(from: $0!) }.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
+			case .int64Bits:   try a.map{ int64(from: $0!) }.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
+			case .float32Bits: try (a as! [Float]).withUnsafeBytes{  ptr in size += try stream.write(dataPtr: ptr) }
+			case .float64Bits: try (a as! [Double]).withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
 				
 			case .highPrecisionNumber:
 				try (a as! [HighPrecisionNumber]).forEach{ h in
@@ -780,7 +780,7 @@ final public class UBJSONSerialization {
 					}
 					return Int8(s.value)
 				}
-				try charsAsInts.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+				try charsAsInts.withUnsafeBytes{ ptr in size += try stream.write(dataPtr: ptr) }
 				
 			case .string:
 				try (a as! [String]).forEach{ s in size += try write(stringNoMarker: s, to: stream, options: opt) }
@@ -816,13 +816,13 @@ final public class UBJSONSerialization {
 				
 			case .null, .`true`, .`false`: writer = { _ in return 0 }
 				
-			case .int8Bits:    writer = { o in var v =  int8(from: o!);  return try _write(value: &v, toStream: stream) }
-			case .uint8Bits:   writer = { o in var v = uint8(from: o!);  return try _write(value: &v, toStream: stream) }
-			case .int16Bits:   writer = { o in var v = int16(from: o!);  return try _write(value: &v, toStream: stream) }
-			case .int32Bits:   writer = { o in var v = int32(from: o!);  return try _write(value: &v, toStream: stream) }
-			case .int64Bits:   writer = { o in var v = int64(from: o!);  return try _write(value: &v, toStream: stream) }
-			case .float32Bits: writer = { o in var v = (o as! Float);  return try _write(value: &v, toStream: stream) }
-			case .float64Bits: writer = { o in var v = (o as! Double); return try _write(value: &v, toStream: stream) }
+			case .int8Bits:    writer = { o in var v =  int8(from: o!);  return try stream.write(value: &v) }
+			case .uint8Bits:   writer = { o in var v = uint8(from: o!);  return try stream.write(value: &v) }
+			case .int16Bits:   writer = { o in var v = int16(from: o!);  return try stream.write(value: &v) }
+			case .int32Bits:   writer = { o in var v = int32(from: o!);  return try stream.write(value: &v) }
+			case .int64Bits:   writer = { o in var v = int64(from: o!);  return try stream.write(value: &v) }
+			case .float32Bits: writer = { o in var v = (o as! Float);  return try stream.write(value: &v) }
+			case .float64Bits: writer = { o in var v = (o as! Double); return try stream.write(value: &v) }
 				
 			case .highPrecisionNumber:
 				writer = { o in
@@ -838,7 +838,7 @@ final public class UBJSONSerialization {
 						throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: c)
 					}
 					var v = Int8(s.value)
-					return try _write(value: &v, toStream: stream)
+					return try stream.write(value: &v)
 				}
 				
 			case .string:
