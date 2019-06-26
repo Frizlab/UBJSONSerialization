@@ -129,7 +129,6 @@ final public class UBJSONSpec8Serialization {
 		precondition(Int.max == Int64.max, "I currently need Int to be Int64")
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
-		/* TODO: Handle endianness! UBSJON is big endian. */
 		
 		let elementType = try self.elementType(from: simpleStream, allowNop: opt.contains(.returnNopElements))
 		return try element(from: simpleStream, type: elementType, options: opt)
@@ -167,11 +166,11 @@ final public class UBJSONSpec8Serialization {
 			
 		case var f as Float:
 			size += try write(elementType: .float32Bits, toStream: stream)
-			size += try write(value: &f, toStream: stream)
+			size += try _write(value: &f, toStream: stream)
 			
 		case var d as Double:
 			size += try write(elementType: .float64Bits, toStream: stream)
-			size += try write(value: &d, toStream: stream)
+			size += try _write(value: &d, toStream: stream)
 			
 		case let h as HighPrecisionNumber:
 			let strValue = opt.contains(.normalizeHighPrecisionNumbers) ? h.normalizedStringValue : h.stringValue
@@ -355,7 +354,7 @@ final public class UBJSONSpec8Serialization {
 	private class func elementType(from simpleStream: SimpleReadStream, allowNop: Bool) throws -> UBJSONSpec8ElementType {
 		var curElementType: UBJSONSpec8ElementType
 		repeat {
-			let intType: UInt8 = try simpleStream.readType()
+			let intType: UInt8 = try simpleStream.readBigEndianInt()
 			guard let e = UBJSONSpec8ElementType(rawValue: intType) else {
 				throw UBJSONSerializationError.invalidElementType(intType)
 			}
@@ -372,8 +371,8 @@ final public class UBJSONSpec8Serialization {
 	
 	private class func string(from simpleStream: SimpleReadStream, isSmall: Bool, options opt: ReadingOptions) throws -> String {
 		let size: Int
-		if isSmall {let s: Int8  = try simpleStream.readType(); size = Int(s)}
-		else       {let s: Int32 = try simpleStream.readType(); size = Int(s)}
+		if isSmall {let s: Int8  = try simpleStream.readBigEndianInt(); size = Int(s)}
+		else       {let s: Int32 = try simpleStream.readBigEndianInt(); size = Int(s)}
 		
 		let strData = try simpleStream.readData(size: size)
 		guard let str = String(data: strData, encoding: .utf8) else {
@@ -386,8 +385,8 @@ final public class UBJSONSpec8Serialization {
 		var res = [Any?]()
 		
 		let size: Int
-		if isSmall {let s: UInt8  = try simpleStream.readType(); size = Int(s)}
-		else       {let s: UInt32 = try simpleStream.readType(); size = Int(s)}
+		if isSmall {let s: UInt8  = try simpleStream.readBigEndianInt(); size = Int(s)}
+		else       {let s: UInt32 = try simpleStream.readBigEndianInt(); size = Int(s)}
 		
 		let isIndeterminateSize = (isSmall && size == 255)
 		if !isIndeterminateSize {
@@ -415,8 +414,8 @@ final public class UBJSONSpec8Serialization {
 		var res = [String: Any?]()
 		
 		let size: Int
-		if isSmall {let s: UInt8  = try simpleStream.readType(); size = Int(s)}
-		else       {let s: UInt32 = try simpleStream.readType(); size = Int(s)}
+		if isSmall {let s: UInt8  = try simpleStream.readBigEndianInt(); size = Int(s)}
+		else       {let s: UInt32 = try simpleStream.readBigEndianInt(); size = Int(s)}
 		
 		let isIndeterminateSize = (isSmall && size == 255)
 		if !isIndeterminateSize {
@@ -457,10 +456,10 @@ final public class UBJSONSpec8Serialization {
 		case .`true`:  return true
 		case .`false`: return false
 			
-		case .int8Bits:    let ret:   Int8 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int16Bits:   let ret:  Int16 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int32Bits:   let ret:  Int32 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int64Bits:   let ret:  Int64 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int8Bits:    let ret:   Int8 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int16Bits:   let ret:  Int16 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int32Bits:   let ret:  Int32 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int64Bits:   let ret:  Int64 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
 		case .float32Bits: let ret:  Float = try simpleStream.readType(); return ret
 		case .float64Bits: let ret: Double = try simpleStream.readType(); return ret
 			
@@ -505,27 +504,9 @@ final public class UBJSONSpec8Serialization {
 		}
 	}
 	
-	private class func write(dataPtr: UnsafeRawBufferPointer, to stream: OutputStream) throws -> Int {
-		guard dataPtr.count > 0 else {return 0}
-		
-		let bound = dataPtr.bindMemory(to: UInt8.self)
-		let writtenSize = stream.write(bound.baseAddress!, maxLength: dataPtr.count)
-		guard writtenSize == dataPtr.count else {throw UBJSONSerializationError.cannotWriteToStream(streamError: stream.streamError)}
-		return dataPtr.count
-	}
-	
-	private class func write<T>(value: inout T, toStream stream: OutputStream) throws -> Int {
-		let size = MemoryLayout<T>.size
-		guard size > 0 else {return 0} /* Void size is 0 */
-		
-		return try withUnsafePointer(to: &value, { pointer -> Int in
-			return try write(dataPtr: UnsafeRawBufferPointer(UnsafeBufferPointer<T>(start: pointer, count: 1)), to: stream)
-		})
-	}
-	
 	private class func write(elementType: UBJSONSpec8ElementType, toStream stream: OutputStream) throws -> Int {
 		var t = elementType.rawValue
-		return try write(value: &t, toStream: stream)
+		return try _write(value: &t, toStream: stream)
 	}
 	
 	private class func write(string s: String, shortStringMarker: UBJSONSpec8ElementType, longStringMarker: UBJSONSpec8ElementType, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
@@ -534,20 +515,20 @@ final public class UBJSONSpec8Serialization {
 		if data.count <= 254 {
 			var sizeInt8 = Int8(data.count)
 			size += try write(elementType: shortStringMarker, toStream: stream)
-			size += try write(value: &sizeInt8, toStream: stream)
+			size += try _write(value: &sizeInt8, toStream: stream)
 		} else {
 			var sizeInt32 = Int32(data.count)
 			size += try write(elementType: longStringMarker, toStream: stream)
-			size += try write(value: &sizeInt32, toStream: stream)
+			size += try _write(value: &sizeInt32, toStream: stream)
 		}
-		try data.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+		try data.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
 		return size
 	}
 	
 	private class func write(int i: inout Int8, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		size += try write(elementType: .int8Bits, toStream: stream)
-		size += try write(value: &i, toStream: stream)
+		size += try _write(value: &i, toStream: stream)
 		return size
 	}
 	
@@ -555,7 +536,7 @@ final public class UBJSONSpec8Serialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int16Bits, toStream: stream)
-			size += try write(value: &i, toStream: stream)
+			size += try _write(value: &i, toStream: stream)
 			return size
 		}
 		
@@ -569,7 +550,7 @@ final public class UBJSONSpec8Serialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int32Bits, toStream: stream)
-			size += try write(value: &i, toStream: stream)
+			size += try _write(value: &i, toStream: stream)
 			return size
 		}
 		
@@ -583,7 +564,7 @@ final public class UBJSONSpec8Serialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int64Bits, toStream: stream)
-			size += try write(value: &i, toStream: stream)
+			size += try _write(value: &i, toStream: stream)
 			return size
 		}
 		
@@ -620,17 +601,17 @@ final public class UBJSONSpec8Serialization {
 		if isIndeterminateSize {
 			var s: UInt8 = 255
 			size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-			size += try write(value: &s, toStream: stream)
+			size += try _write(value: &s, toStream: stream)
 		} else {
 			let c = a.count
 			if c <= 254 {
 				var s = UInt8(c)
 				size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-				size += try write(value: &s, toStream: stream)
+				size += try _write(value: &s, toStream: stream)
 			} else {
 				var s = UInt32(c)
 				size += try write(elementType: .arrayStartSizeOn4Bytes, toStream: stream)
-				size += try write(value: &s, toStream: stream)
+				size += try _write(value: &s, toStream: stream)
 			}
 		}
 		
@@ -650,17 +631,17 @@ final public class UBJSONSpec8Serialization {
 		if isIndeterminateSize {
 			var s: UInt8 = 255
 			size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-			size += try write(value: &s, toStream: stream)
+			size += try _write(value: &s, toStream: stream)
 		} else {
 			let c = o.count
 			if c <= 254 {
 				var s = UInt8(c)
 				size += try write(elementType: .arrayStartSizeOn1Byte, toStream: stream)
-				size += try write(value: &s, toStream: stream)
+				size += try _write(value: &s, toStream: stream)
 			} else {
 				var s = UInt32(c)
 				size += try write(elementType: .arrayStartSizeOn4Bytes, toStream: stream)
-				size += try write(value: &s, toStream: stream)
+				size += try _write(value: &s, toStream: stream)
 			}
 		}
 		
