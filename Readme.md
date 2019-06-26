@@ -45,8 +45,10 @@ the moment in Swift.
 I used the UBJSON specification from http://ubjson.org
 
 ## To Do
+- [ ] Support for streaming (receiving/sending data live);
 - [ ] At some point in the future, but maybe in a separate project, add support for
 Swift’s Encoder protocol.
+- [ ] Swift NIO support?
 
 I’ll work seriously on the project if it gains enough attention. Feel free to
 open issues, I’ll do my best to answer.

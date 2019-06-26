@@ -20,7 +20,7 @@ extension Data {
 	 *
 	 * Spaces are removed from input string ("AB CD 12" == "ABCD12"). */
 	init?(hexEncoded str: String) {
-		let str = str.replacingOccurrences(of: " ", with: "")
+		let str = str.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\n", with: "")
 		let size = str.count/2 + (str.count%2 == 0 ? 0 : 1)
 		var bytes = [UInt8](repeating: 0, count: size)
 		for (i, c) in str.enumerated() {

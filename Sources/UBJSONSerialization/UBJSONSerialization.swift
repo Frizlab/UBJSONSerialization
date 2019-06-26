@@ -11,14 +11,9 @@ import SimpleStream
 
 
 
-/** To represent the `No-Op` element of UBJSON. */
-public struct Nop : Equatable {
-	public static let sharedNop = Nop()
-	public static func ==(lhs: Nop, rhs: Nop) -> Bool {return true}
-	public static func ==(lhs: Any?, rhs: Nop) -> Bool {return lhs is Nop}
-}
+/** [UBJSON spec 12](https://github.com/ubjson/universal-binary-json/tree/b0f2cbb44ef19357418e41a0813fc498a9eb2779/spec12)
 
-
+At the time of writing, also the specs that are present at [on the website](http://ubjson.org). */
 final public class UBJSONSerialization {
 	
 	public struct ReadingOptions : OptionSet {
@@ -55,7 +50,11 @@ final public class UBJSONSerialization {
 		array. Specs says this element is a valueless value, so in array, it
 		should simply be skipped: for this input, `["a", Nop, "b"]`, we should
 		return `["a", "b"]`. This option allows you to keep the `Nop` in the
-		deserialized array. */
+		deserialized array.
+		
+		`Nop` in a dictionary has no meaning and is always **skipped** (it is NOT
+		(AFAICT) invalid to have a Nop element before a value in a dictionary in a
+		non-optimized dictionary; the Nop is simply skipped). */
 		public static let keepNopElementsInArrays = ReadingOptions(rawValue: 1 << 3)
 		
 		public init(rawValue v: Int) {
@@ -82,13 +81,13 @@ final public class UBJSONSerialization {
 		public static let optimizeIntsForSize = WritingOptions(rawValue: 1 << 1)
 		
 		/**
-		Removes `No-op` elements from containers. For objects, if a value is
-		`No-op`, the key and value will be skipped.
+		Removes `No-op` elements from arrays. For dictionaries, the Nop element is
+		invalid as it is a valueless value.
 		
 		- Note: This option is expensive (has to do a first pass through the whole
-		serialized object graph before serialization). Only use in case there is a
-		chance your data contains `No-op` elements and you want it dropped. */
-		public static let skipNopElementsInContainers = WritingOptions(rawValue: 1 << 2)
+		serialized object graph before serialization). Only use it in case there
+		is a chance your data contains `No-op` elements and you want it dropped. */
+		public static let skipNopElementsInArrays = WritingOptions(rawValue: 1 << 2)
 		
 		/**
 		Try and optimize the serialization of the containers. By default, uses the
@@ -138,7 +137,6 @@ final public class UBJSONSerialization {
 		precondition(Int.max == Int64.max, "I currently need Int to be Int64")
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
-		/* TODO: Handle endianness! UBSJON is big endian. */
 		
 		let elementType = try self.elementType(from: simpleStream, allowNop: opt.contains(.returnNopElements))
 		return try element(from: simpleStream, type: elementType, options: opt)
@@ -177,11 +175,11 @@ final public class UBJSONSerialization {
 			
 		case var f as Float:
 			size += try write(elementType: .float32Bits, toStream: stream)
-			size += try write(value: &f, toStream: stream)
+			size += try _write(value: &f, toStream: stream)
 			
 		case var d as Double:
 			size += try write(elementType: .float64Bits, toStream: stream)
-			size += try write(value: &d, toStream: stream)
+			size += try _write(value: &d, toStream: stream)
 			
 		case let h as HighPrecisionNumber:
 			let strValue = opt.contains(.normalizeHighPrecisionNumbers) ? h.normalizedStringValue : h.stringValue
@@ -195,7 +193,7 @@ final public class UBJSONSerialization {
 			
 			var v: Int8 = Int8(s.value)
 			size += try write(elementType: .char, toStream: stream)
-			size += try write(value: &v, toStream: stream)
+			size += try _write(value: &v, toStream: stream)
 			
 		case let s as String:
 			size += try write(elementType: .string, toStream: stream)
@@ -209,32 +207,112 @@ final public class UBJSONSerialization {
 			size += try write(elementType: .objectStart, toStream: stream)
 			size += try write(objectNoMarker: o, to: stream, options: opt)
 			
-		default:
-			throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: object! /* nil case already processed above */)
+		case let unknown?:
+			throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: unknown)
 		}
 		return size
 	}
 	
-	public class func isValidUBJSONObject(_ obj: Any?) -> Bool {
+	/** Check a dictionary for UBJSON validity.
+	
+	You have an option to treat Nop as an invalid value, either if directly the
+	value, or if it inside an array. Nop is always invalid inside a dictionary. */
+	public class func isValidUBJSONObject(_ obj: Any?, treatNopAsInvalid: Bool = false, treatNopAsInvalidInArray: Bool = false) -> Bool {
 		switch obj {
-		case nil:                                                  return true
-		case _ as Bool, _ as Nop, _ as Int, _ as Int8, _ as UInt8: return true
-		case _ as Int16, _ as Int32, _ as Int64, _ as Float:       return true
-		case _ as Double, _ as HighPrecisionNumber, _ as String:   return true
+		case nil:                                                return true
+		case _ as Nop:                                           return treatNopAsInvalid
+		case _ as Bool, _ as Int, _ as Int8, _ as UInt8:         return true
+		case _ as Int16, _ as Int32, _ as Int64, _ as Float:     return true
+		case _ as Double, _ as HighPrecisionNumber, _ as String: return true
 			
 		case let c as Character:
 			guard c.unicodeScalars.count == 1, let s = c.unicodeScalars.first else {return false}
 			guard s.value >= 0 && s.value <= 127 else {return false}
 			return true
 			
-		case let a as         [Any?]: return !a.contains(where: { !isValidUBJSONObject($0) })
-		case let o as [String: Any?]: return !o.contains(where: { !isValidUBJSONObject($0.value) })
+		case let a as         [Any?]: return !a.contains(where: { !isValidUBJSONObject($0,       treatNopAsInvalid: treatNopAsInvalidInArray, treatNopAsInvalidInArray: treatNopAsInvalidInArray) })
+		case let o as [String: Any?]: return !o.contains(where: { !isValidUBJSONObject($0.value, treatNopAsInvalid: true,                     treatNopAsInvalidInArray: treatNopAsInvalidInArray) })
 			
 		default:
 			return false
 		}
 	}
 	
+	/** Check both given UBJSON for equality. Throws if the docs are not valid
+	UBJSON docs! */
+	public class func areUBJSONDocEqual(_ doc1: Any?, _ doc2: Any?) throws -> Bool {
+		switch doc1 {
+		case nil:             guard doc2          == nil else {return false}
+		case let val as Bool: guard doc2 as? Bool == val else {return false}
+			
+		case _ as Nop: guard doc2 is Nop else {return false}
+			
+		case let val1 as Int8:
+			guard doc2 as? Int8 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int8>.size, let val2 = doc2 as? Int, val1 == Int8(val2) {return true}
+				return false
+			}
+			
+		case let val1 as UInt8:
+			guard doc2 as? UInt8 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<UInt8>.size, let val2 = doc2 as? Int, val1 == UInt8(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int16:
+			guard doc2 as? Int16 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int16>.size, let val2 = doc2 as? Int, val1 == Int16(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int32:
+			guard doc2 as? Int32 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int32>.size, let val2 = doc2 as? Int, val1 == Int32(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int64:
+			guard doc2 as? Int64 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int64>.size, let val2 = doc2 as? Int, val1 == Int64(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int:
+			guard doc2 as? Int == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int8>.size,  let val2 = doc2 as? Int8,  val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<UInt8>.size, let val2 = doc2 as? UInt8, val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<Int16>.size, let val2 = doc2 as? Int16, val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<Int32>.size, let val2 = doc2 as? Int32, val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<Int64>.size, let val2 = doc2 as? Int64, val1 == Int(val2) {return true}
+				return false
+			}
+			
+		case let val as Float:  guard doc2 as? Float  == val else {return false}
+		case let val as Double: guard doc2 as? Double == val else {return false}
+		case let str as String: guard doc2 as? String == str else {return false}
+		case let val as Character: guard doc2 as? Character == val else {return false}
+		case let val as HighPrecisionNumber: guard doc2 as? HighPrecisionNumber == val else {return false}
+			
+		case let subObj1 as [String: Any?]:
+			guard let subObj2 = doc2 as? [String: Any?], subObj1.count == subObj2.count else {return false}
+			for (subval1, subval2) in zip(subObj1, subObj2) {
+				guard subval1.key == subval2.key else {return false}
+				guard try areUBJSONDocEqual(subval1.value, subval2.value) else {return false}
+			}
+			
+		case let array1 as [Any?]:
+			guard let array2 = doc2 as? [Any?], array1.count == array2.count else {return false}
+			for (subval1, subval2) in zip(array1, array2) {
+				guard try areUBJSONDocEqual(subval1, subval2) else {return false}
+			}
+			
+		case let unknown?:
+			throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: unknown)
+		}
+		
+		return true
+	}
+
 	/* ***************
 	   MARK: - Private
 	   *************** */
@@ -325,7 +403,7 @@ final public class UBJSONSerialization {
 	private class func elementType(from simpleStream: SimpleReadStream, allowNop: Bool) throws -> UBJSONElementType {
 		var curElementType: UBJSONElementType
 		repeat {
-			let intType: UInt8 = try simpleStream.readType()
+			let intType: UInt8 = try simpleStream.readBigEndianInt()
 			guard let e = UBJSONElementType(rawValue: intType) else {
 				throw UBJSONSerializationError.invalidElementType(intType)
 			}
@@ -437,7 +515,7 @@ final public class UBJSONSerialization {
 		
 		var curObj: Any??
 		var declaredObjectCount: Int?
-		let type = try self.elementType(from: simpleStream, allowNop: true)
+		let type = try elementType(from: simpleStream, allowNop: true)
 		switch type {
 		case .internalContainerType:
 			/* The object is optimized with a type and a count. */
@@ -484,6 +562,7 @@ final public class UBJSONSerialization {
 				throw UBJSONSerializationError.malformedObject
 				
 			default:
+				assert(value == nil || !(value! is Nop))
 				res[key] = value
 				objectCount += 1
 			}
@@ -504,11 +583,11 @@ final public class UBJSONSerialization {
 		case .`true`:  return true
 		case .`false`: return false
 			
-		case .int8Bits:    let ret:   Int8 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .uint8Bits:   let ret:  UInt8 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int16Bits:   let ret:  Int16 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int32Bits:   let ret:  Int32 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int64Bits:   let ret:  Int64 = try simpleStream.readType(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int8Bits:    let ret:   Int8 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .uint8Bits:   let ret:  UInt8 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int16Bits:   let ret:  Int16 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int32Bits:   let ret:  Int32 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int64Bits:   let ret:  Int64 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
 		case .float32Bits: let ret:  Float = try simpleStream.readType(); return ret
 		case .float64Bits: let ret: Double = try simpleStream.readType(); return ret
 			
@@ -516,7 +595,7 @@ final public class UBJSONSerialization {
 			return try highPrecisionNumber(from: simpleStream, options: opt)
 			
 		case .char:
-			let ci: Int8 = try simpleStream.readType()
+			let ci: Int8 = try simpleStream.readBigEndianInt()
 			guard ci >= 0 && ci <= 127, let s = Unicode.Scalar(Int(ci)) else {throw UBJSONSerializationError.invalidChar(ci)}
 			return Character(s)
 			
@@ -534,7 +613,7 @@ final public class UBJSONSerialization {
 			
 		case .internalContainerType:
 			let invalidTypes: Set<UBJSONElementType> = [.nop, .arrayEnd, .objectEnd, .internalContainerType, .internalContainerCount]
-			let intContainerType: UInt8 = try simpleStream.readType()
+			let intContainerType: UInt8 = try simpleStream.readBigEndianInt()
 			guard let containerType = UBJSONElementType(rawValue: intContainerType), !invalidTypes.contains(containerType) else {
 				throw UBJSONSerializationError.invalidContainerType(intContainerType)
 			}
@@ -574,48 +653,30 @@ final public class UBJSONSerialization {
 		}
 	}
 	
-	private class func write(dataPtr: UnsafeRawBufferPointer, to stream: OutputStream) throws -> Int {
-		guard dataPtr.count > 0 else {return 0}
-		
-		let bound = dataPtr.bindMemory(to: UInt8.self)
-		let writtenSize = stream.write(bound.baseAddress!, maxLength: dataPtr.count)
-		guard writtenSize == dataPtr.count else {throw UBJSONSerializationError.cannotWriteToStream(streamError: stream.streamError)}
-		return dataPtr.count
-	}
-	
-	private class func write<T>(value: inout T, toStream stream: OutputStream) throws -> Int {
-		let size = MemoryLayout<T>.size
-		guard size > 0 else {return 0} /* Void size is 0 */
-		
-		return try withUnsafePointer(to: &value, { pointer -> Int in
-			return try write(dataPtr: UnsafeRawBufferPointer(UnsafeBufferPointer<T>(start: pointer, count: 1)), to: stream)
-		})
-	}
-	
 	private class func write(elementType: UBJSONElementType, toStream stream: OutputStream) throws -> Int {
 		var t = elementType.rawValue
-		return try write(value: &t, toStream: stream)
+		return try _write(value: &t, toStream: stream)
 	}
 	
 	private class func write(stringNoMarker s: String, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		let data = Data(s.utf8)
 		size += try writeUBJSONObject(data.count, to: stream, options: opt)
-		try data.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+		try data.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
 		return size
 	}
 	
 	private class func write(int i: inout Int8, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		size += try write(elementType: .int8Bits, toStream: stream)
-		size += try write(value: &i, toStream: stream)
+		size += try _write(value: &i, toStream: stream)
 		return size
 	}
 	
 	private class func write(int i: inout UInt8, to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		size += try write(elementType: .uint8Bits, toStream: stream)
-		size += try write(value: &i, toStream: stream)
+		size += try _write(value: &i, toStream: stream)
 		return size
 	}
 	
@@ -623,7 +684,7 @@ final public class UBJSONSerialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int16Bits, toStream: stream)
-			size += try write(value: &i, toStream: stream)
+			size += try _write(value: &i, toStream: stream)
 			return size
 		}
 		
@@ -638,7 +699,7 @@ final public class UBJSONSerialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int32Bits, toStream: stream)
-			size += try write(value: &i, toStream: stream)
+			size += try _write(value: &i, toStream: stream)
 			return size
 		}
 		
@@ -652,7 +713,7 @@ final public class UBJSONSerialization {
 		guard opt.contains(.optimizeIntsForSize) else {
 			var size = 0
 			size += try write(elementType: .int64Bits, toStream: stream)
-			size += try write(value: &i, toStream: stream)
+			size += try _write(value: &i, toStream: stream)
 			return size
 		}
 		
@@ -682,8 +743,8 @@ final public class UBJSONSerialization {
 	private class func write(arrayNoMarker a: [Any?], to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		
-		let optNoSkipNop = opt.subtracting(.skipNopElementsInContainers)
-		let a = !opt.contains(.skipNopElementsInContainers) ? a : dropNopRecursively(element: a) as! [Any?]
+		let optNoSkipNop = opt.subtracting(.skipNopElementsInArrays)
+		let a = !opt.contains(.skipNopElementsInArrays) ? a : dropNopRecursively(element: a) as! [Any?]
 		
 		if opt.contains(.enableContainerOptimization), let t = typeForOptimizedContainer(values: a) {
 			/* Container info */
@@ -698,13 +759,13 @@ final public class UBJSONSerialization {
 				
 			case .null, .`true`, .`false`: (/*nop*/)
 				
-			case .int8Bits:    try a.map{  int8(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
-			case .uint8Bits:   try a.map{ uint8(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
-			case .int16Bits:   try a.map{ int16(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
-			case .int32Bits:   try a.map{ int32(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
-			case .int64Bits:   try a.map{ int64(from: $0!) }.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
-			case .float32Bits: try (a as! [Float]).withUnsafeBytes{  ptr in size += try write(dataPtr: ptr, to: stream) }
-			case .float64Bits: try (a as! [Double]).withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+			case .int8Bits:    try a.map{  int8(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+			case .uint8Bits:   try a.map{ uint8(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+			case .int16Bits:   try a.map{ int16(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+			case .int32Bits:   try a.map{ int32(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+			case .int64Bits:   try a.map{ int64(from: $0!) }.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
+			case .float32Bits: try (a as! [Float]).withUnsafeBytes{  ptr in size += try _write(dataPtr: ptr, to: stream) }
+			case .float64Bits: try (a as! [Double]).withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
 				
 			case .highPrecisionNumber:
 				try (a as! [HighPrecisionNumber]).forEach{ h in
@@ -719,7 +780,7 @@ final public class UBJSONSerialization {
 					}
 					return Int8(s.value)
 				}
-				try charsAsInts.withUnsafeBytes{ ptr in size += try write(dataPtr: ptr, to: stream) }
+				try charsAsInts.withUnsafeBytes{ ptr in size += try _write(dataPtr: ptr, to: stream) }
 				
 			case .string:
 				try (a as! [String]).forEach{ s in size += try write(stringNoMarker: s, to: stream, options: opt) }
@@ -741,9 +802,6 @@ final public class UBJSONSerialization {
 	private class func write(objectNoMarker o: [String: Any?], to stream: OutputStream, options opt: WritingOptions) throws -> Int {
 		var size = 0
 		
-		let optNoSkipNop = opt.subtracting(.skipNopElementsInContainers)
-		let o = !opt.contains(.skipNopElementsInContainers) ? o : dropNopRecursively(element: o) as! [String: Any?]
-		
 		if opt.contains(.enableContainerOptimization), let t = typeForOptimizedContainer(values: o.values) {
 			/* Container info */
 			size += try write(elementType: .internalContainerType, toStream: stream)
@@ -758,13 +816,13 @@ final public class UBJSONSerialization {
 				
 			case .null, .`true`, .`false`: writer = { _ in return 0 }
 				
-			case .int8Bits:    writer = { o in var v =  int8(from: o!);  return try write(value: &v, toStream: stream) }
-			case .uint8Bits:   writer = { o in var v = uint8(from: o!);  return try write(value: &v, toStream: stream) }
-			case .int16Bits:   writer = { o in var v = int16(from: o!);  return try write(value: &v, toStream: stream) }
-			case .int32Bits:   writer = { o in var v = int32(from: o!);  return try write(value: &v, toStream: stream) }
-			case .int64Bits:   writer = { o in var v = int64(from: o!);  return try write(value: &v, toStream: stream) }
-			case .float32Bits: writer = { o in var v = (o as! Float);  return try write(value: &v, toStream: stream) }
-			case .float64Bits: writer = { o in var v = (o as! Double); return try write(value: &v, toStream: stream) }
+			case .int8Bits:    writer = { o in var v =  int8(from: o!);  return try _write(value: &v, toStream: stream) }
+			case .uint8Bits:   writer = { o in var v = uint8(from: o!);  return try _write(value: &v, toStream: stream) }
+			case .int16Bits:   writer = { o in var v = int16(from: o!);  return try _write(value: &v, toStream: stream) }
+			case .int32Bits:   writer = { o in var v = int32(from: o!);  return try _write(value: &v, toStream: stream) }
+			case .int64Bits:   writer = { o in var v = int64(from: o!);  return try _write(value: &v, toStream: stream) }
+			case .float32Bits: writer = { o in var v = (o as! Float);  return try _write(value: &v, toStream: stream) }
+			case .float64Bits: writer = { o in var v = (o as! Double); return try _write(value: &v, toStream: stream) }
 				
 			case .highPrecisionNumber:
 				writer = { o in
@@ -780,17 +838,17 @@ final public class UBJSONSerialization {
 						throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: c)
 					}
 					var v = Int8(s.value)
-					return try write(value: &v, toStream: stream)
+					return try _write(value: &v, toStream: stream)
 				}
 				
 			case .string:
 				writer = { o in try write(stringNoMarker: o as! String, to: stream, options: opt) }
 				
 			case .arrayStart:
-				writer = { o in try write(arrayNoMarker: o as! [Any?], to: stream, options: optNoSkipNop) }
+				writer = { o in try write(arrayNoMarker: o as! [Any?], to: stream, options: opt) }
 				
 			case .objectStart:
-				writer = { o in try write(objectNoMarker: o as! [String: Any?], to: stream, options: optNoSkipNop) }
+				writer = { o in try write(objectNoMarker: o as! [String: Any?], to: stream, options: opt) }
 			}
 			for (k, v) in o {
 				size += try write(stringNoMarker: k, to: stream, options: opt)
@@ -799,6 +857,7 @@ final public class UBJSONSerialization {
 		} else {
 			/* Writing dictionary with standard (JSON-like) notation */
 			for (k, v) in o {
+				guard !(v is Nop) else {throw UBJSONSerializationError.dictionaryContainsNop}
 				size += try write(stringNoMarker: k, to: stream, options: opt)
 				size += try writeUBJSONObject(v, to: stream, options: opt)
 			}
@@ -807,15 +866,13 @@ final public class UBJSONSerialization {
 		return size
 	}
 	
-	private class func dropNopRecursively(element e: Any?) -> Any?? {
-		if e is Nop {return nil}
-		if let a = e as? [Any?] {return .some(a.compactMap(dropNopRecursively))}
-		if let o = e as? [String: Any?] {
-			return .some(Dictionary(uniqueKeysWithValues: o.compactMap{ (_ t: (key: String, value: Any?)) -> (String, Any?)? in
-				guard let v = dropNopRecursively(element: t.value) else {return nil}
-				return (t.key, v)
-			}))
-		}
+	private class func dropNopRecursively(element e: Any?, fromDictionary: Bool = false) -> Any?? {
+		/* We keep the Nop element in values of a dictionary to have explicit
+		 * serialization failure later (Nop is forbidden in a dictionary). */
+		if !fromDictionary && e is Nop {return nil}
+		
+		if let a = e as? [Any?]         {return .some(a.compactMap{ dropNopRecursively(element: $0, fromDictionary: false) })}
+		if let o = e as? [String: Any?] {return .some(o.mapValues{  dropNopRecursively(element: $0, fromDictionary: true)! })} /* We can bang because nil is never return when we come from a dictionary. */
 		return .some(e)
 	}
 	
