@@ -45,6 +45,10 @@ public enum UBJSONSerializationError : Error {
 	is passed in argument to this error. */
 	case invalidUBJSONObject(invalidElement: Any)
 	
+	/* Spec 8 error */
+	case sizedArrayContainsNop
+	case dictionaryContainsNop /* Both spec 8 and 12 */
+	
 	case internalError
 	
 }

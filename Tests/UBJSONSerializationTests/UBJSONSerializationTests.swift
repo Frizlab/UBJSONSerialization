@@ -3,7 +3,7 @@ import XCTest
 
 
 
-class UBJSONSerializationTests: XCTestCase {
+class UBJSONSerializationTests : XCTestCase {
 	
 	func testGarbageAtEndError() {
 		XCTAssertThrowsError(try UBJSONSerialization.ubjsonObject(with: Data("ZZ".utf8), options: []))
@@ -48,9 +48,9 @@ class UBJSONSerializationTests: XCTestCase {
 		XCTAssertEqual(try UBJSONSerialization.ubjsonObject(with: Data(hexEncoded: "7B 69 03 6B 65 79 53 69 05 76 61 6C 75 65 7D")!, options: []) as? [String: String] ?? [:], ["key": "value"])
 	}
 	
-	func testDecodeBigOptimizedArray() {
-		guard let decoded = (try? UBJSONSerialization.ubjsonObject(with: Data(hexEncoded: "5B 24 5A 23 69 7F")!, options: [])) as? [Any?] else {
-			XCTFail("Cannot decode data")
+	func testDecodeBigOptimizedArray() throws {
+		guard let decoded = try UBJSONSerialization.ubjsonObject(with: Data(hexEncoded: "5B 24 5A 23 69 7F")!, options: []) as? [Any?] else {
+			XCTFail("Decoded data is not an array")
 			return
 		}
 		XCTAssertEqual(decoded.count, 127)

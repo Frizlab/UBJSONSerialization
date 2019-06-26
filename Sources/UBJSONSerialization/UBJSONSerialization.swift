@@ -208,8 +208,8 @@ final public class UBJSONSerialization {
 			size += try write(elementType: .objectStart, toStream: stream)
 			size += try write(objectNoMarker: o, to: stream, options: opt)
 			
-		default:
-			throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: object! /* nil case already processed above */)
+		case let unknown?:
+			throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: unknown)
 		}
 		return size
 	}
@@ -239,6 +239,81 @@ final public class UBJSONSerialization {
 		}
 	}
 	
+	/** Check both given UBJSON for equality. Throws if the docs are not valid
+	UBJSON docs! */
+	public class func areUBJSONDocEqual(_ doc1: Any?, _ doc2: Any?) throws -> Bool {
+		switch doc1 {
+		case nil:             guard doc2          == nil else {return false}
+		case let val as Bool: guard doc2 as? Bool == val else {return false}
+			
+		case _ as Nop: guard doc2 is Nop else {return false}
+			
+		case let val1 as Int8:
+			guard doc2 as? Int8 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int8>.size, let val2 = doc2 as? Int, val1 == Int8(val2) {return true}
+				return false
+			}
+			
+		case let val1 as UInt8:
+			guard doc2 as? UInt8 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<UInt8>.size, let val2 = doc2 as? Int, val1 == UInt8(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int16:
+			guard doc2 as? Int16 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int16>.size, let val2 = doc2 as? Int, val1 == Int16(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int32:
+			guard doc2 as? Int32 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int32>.size, let val2 = doc2 as? Int, val1 == Int32(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int64:
+			guard doc2 as? Int64 == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int64>.size, let val2 = doc2 as? Int, val1 == Int64(val2) {return true}
+				return false
+			}
+			
+		case let val1 as Int:
+			guard doc2 as? Int == val1 else {
+				if MemoryLayout<Int>.size == MemoryLayout<Int8>.size,  let val2 = doc2 as? Int8,  val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<UInt8>.size, let val2 = doc2 as? UInt8, val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<Int16>.size, let val2 = doc2 as? Int16, val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<Int32>.size, let val2 = doc2 as? Int32, val1 == Int(val2) {return true}
+				if MemoryLayout<Int>.size == MemoryLayout<Int64>.size, let val2 = doc2 as? Int64, val1 == Int(val2) {return true}
+				return false
+			}
+			
+		case let val as Float:  guard doc2 as? Float  == val else {return false}
+		case let val as Double: guard doc2 as? Double == val else {return false}
+		case let str as String: guard doc2 as? String == str else {return false}
+		case let val as Character: guard doc2 as? Character == val else {return false}
+		case let val as HighPrecisionNumber: guard doc2 as? HighPrecisionNumber == val else {return false}
+			
+		case let subObj1 as [String: Any?]:
+			guard let subObj2 = doc2 as? [String: Any?], subObj1.count == subObj2.count else {return false}
+			for (subval1, subval2) in zip(subObj1, subObj2) {
+				guard subval1.key == subval2.key else {return false}
+				guard try areUBJSONDocEqual(subval1.value, subval2.value) else {return false}
+			}
+			
+		case let array1 as [Any?]:
+			guard let array2 = doc2 as? [Any?], array1.count == array2.count else {return false}
+			for (subval1, subval2) in zip(array1, array2) {
+				guard try areUBJSONDocEqual(subval1, subval2) else {return false}
+			}
+			
+		case let unknown?:
+			throw UBJSONSerializationError.invalidUBJSONObject(invalidElement: unknown)
+		}
+		
+		return true
+	}
+
 	/* ***************
 	   MARK: - Private
 	   *************** */
@@ -801,6 +876,7 @@ final public class UBJSONSerialization {
 		} else {
 			/* Writing dictionary with standard (JSON-like) notation */
 			for (k, v) in o {
+				guard !(v is Nop) else {throw UBJSONSerializationError.dictionaryContainsNop}
 				size += try write(stringNoMarker: k, to: stream, options: opt)
 				size += try writeUBJSONObject(v, to: stream, options: opt)
 			}
