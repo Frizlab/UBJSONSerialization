@@ -41,6 +41,7 @@ extension UBJSONSpec8SerializationTests {
     // to regenerate.
     static let __allTests__UBJSONSpec8SerializationTests = [
         ("testDecodeExternalTest1FromGitHub", testDecodeExternalTest1FromGitHub),
+        ("testDecodeExternalTest2FromGitHub", testDecodeExternalTest2FromGitHub),
     ]
 }
 
