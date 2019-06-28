@@ -524,7 +524,7 @@ class UBJSONSpec8SerializationTests : XCTestCase {
 		let refData = Data(refJSON.utf8)
 		let data = Data(hexEncoded: dataHex)!
 		let refWithDoubles = try JSONSerialization.jsonObject(with: refData, options: []) as! [String: Any?]
-		let ref = refWithDoubles.mapValues(transformDoublesToFloatsAndInts)
+		let ref = refWithDoubles.mapValues(transformDoublesToFloatsAndIntsAndNullToNil)
 		let decoded = try UBJSONSpec8Serialization.ubjsonObject(with: data)
 		XCTAssertTrue(try UBJSONSpec8Serialization.areUBJSONDocEqual(decoded, ref))
 	}
@@ -589,16 +589,17 @@ class UBJSONSpec8SerializationTests : XCTestCase {
 		let refData = Data(refJSON.utf8)
 		let data = Data(hexEncoded: dataHex)!
 		let refWithDoubles = try JSONSerialization.jsonObject(with: refData, options: []) as! [String: Any?]
-		let ref = refWithDoubles.mapValues(transformDoublesToFloatsAndInts)
+		let ref = refWithDoubles.mapValues(transformDoublesToFloatsAndIntsAndNullToNil)
 		let decoded = try UBJSONSpec8Serialization.ubjsonObject(with: data)
 		XCTAssertTrue(try UBJSONSpec8Serialization.areUBJSONDocEqual(decoded, ref))
 	}
 	
-	private func transformDoublesToFloatsAndInts(_ v: Any?) -> Any? {
+	private func transformDoublesToFloatsAndIntsAndNullToNil(_ v: Any?) -> Any? {
 		switch v {
+		case _ as NSNull: return nil /* For Linux; works on macOS without it */
 		case let d as Double:         return isDecimalWhole(Decimal(d)) ? Int(d) : Float(d)
-		case let a as [Any?]:         return a.map(transformDoublesToFloatsAndInts)
-		case let d as [String: Any?]: return d.mapValues(transformDoublesToFloatsAndInts)
+		case let a as [Any?]:         return a.map(transformDoublesToFloatsAndIntsAndNullToNil)
+		case let d as [String: Any?]: return d.mapValues(transformDoublesToFloatsAndIntsAndNullToNil)
 		default: return v
 		}
 	}
