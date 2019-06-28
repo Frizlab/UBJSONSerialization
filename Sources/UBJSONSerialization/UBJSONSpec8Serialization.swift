@@ -460,8 +460,8 @@ final public class UBJSONSpec8Serialization {
 		case .int16Bits:   let ret:  Int16 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
 		case .int32Bits:   let ret:  Int32 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
 		case .int64Bits:   let ret:  Int64 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .float32Bits: let ret:  Float = try simpleStream.readType(); return ret
-		case .float64Bits: let ret: Double = try simpleStream.readType(); return ret
+		case .float32Bits: let ret:  Float = try simpleStream.readBigEndianFloat();  return ret
+		case .float64Bits: let ret: Double = try simpleStream.readBigEndianDouble(); return ret
 			
 		case .highPrecisionNumberSizeOn1Byte:  return try highPrecisionNumber(from: simpleStream, isSmall: true,  options: opt)
 		case .highPrecisionNumberSizeOn4Bytes: return try highPrecisionNumber(from: simpleStream, isSmall: false, options: opt)
@@ -707,21 +707,6 @@ final public class UBJSONSpec8Serialization {
 		case let i as Int:   return Int64(i)
 		default: fatalError("Invalid object to convert to int64: \(o)")
 		}
-	}
-	
-}
-
-
-
-private extension SimpleReadStream {
-	
-	func readArrayOfType<Type>(count: Int) throws -> [Type] {
-		assert(MemoryLayout<Type>.stride == MemoryLayout<Type>.size)
-		/* Adapted (and upgraded) from https://stackoverflow.com/a/24516400 */
-		return try readData(size: count * MemoryLayout<Type>.size, { bytes in
-			let bound = bytes.bindMemory(to: Type.self)
-			return Array(bound)
-		})
 	}
 	
 }

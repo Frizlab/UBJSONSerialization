@@ -82,6 +82,26 @@ extension OutputStream {
 		})
 	}
 	
+	func write(value: inout Float) throws -> Int {
+		let size = MemoryLayout<Float>.size
+		guard size > 0 else {return 0} /* Highly unlikely (understand completely impossible) */
+		
+		var bigEndian = value.bitPattern.bigEndian
+		return try withUnsafePointer(to: &bigEndian, { pointer -> Int in
+			return try write(dataPtr: UnsafeRawBufferPointer(UnsafeBufferPointer<UInt32>(start: pointer, count: 1)))
+		})
+	}
+	
+	func write(value: inout Double) throws -> Int {
+		let size = MemoryLayout<Double>.size
+		guard size > 0 else {return 0} /* Highly unlikely (understand completely impossible) */
+		
+		var bigEndian = value.bitPattern.bigEndian
+		return try withUnsafePointer(to: &bigEndian, { pointer -> Int in
+			return try write(dataPtr: UnsafeRawBufferPointer(UnsafeBufferPointer<UInt64>(start: pointer, count: 1)))
+		})
+	}
+	
 	func write<T>(value: inout T) throws -> Int {
 		let size = MemoryLayout<T>.size
 		guard size > 0 else {return 0} /* Void size is 0 */
@@ -130,5 +150,17 @@ extension SimpleReadStream {
 		let i: Int64 = try readType()
 		return Int64(bigEndian: i)
 	}
-
+	
+	func readBigEndianFloat() throws -> Float {
+		let v: Float = try readType()
+		let bitPattern = UInt32(bigEndian: v.bitPattern)
+		return Float(bitPattern: bitPattern)
+	}
+	
+	func readBigEndianDouble() throws -> Double {
+		let v: Double = try readType()
+		let bitPattern = UInt64(bigEndian: v.bitPattern)
+		return Double(bitPattern: bitPattern)
+	}
+	
 }

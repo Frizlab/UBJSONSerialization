@@ -447,11 +447,11 @@ final public class UBJSONSerialization {
 				
 			case .int8Bits:    let ret:   [Int8] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
 			case .uint8Bits:   let ret:  [UInt8] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
-			case .int16Bits:   let ret:  [Int16] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
-			case .int32Bits:   let ret:  [Int32] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
-			case .int64Bits:   let ret:  [Int64] = try simpleStream.readArrayOfType(count: c); return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
-			case .float32Bits: let ret:  [Float] = try simpleStream.readArrayOfType(count: c); return ret
-			case .float64Bits: let ret: [Double] = try simpleStream.readArrayOfType(count: c); return ret
+			case .int16Bits:   let ret:  [Int16] = try (0..<c).map{ i in try simpleStream.readBigEndianInt() }; return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
+			case .int32Bits:   let ret:  [Int32] = try (0..<c).map{ i in try simpleStream.readBigEndianInt() }; return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
+			case .int64Bits:   let ret:  [Int64] = try (0..<c).map{ i in try simpleStream.readBigEndianInt() }; return !opt.contains(.keepIntPrecision) ? ret.map{ Int($0) } : ret
+			case .float32Bits: let ret:  [Float] = try (0..<c).map{ i in try simpleStream.readBigEndianFloat() };  return ret
+			case .float64Bits: let ret: [Double] = try (0..<c).map{ i in try simpleStream.readBigEndianDouble() }; return ret
 				
 			case .highPrecisionNumber:
 				return try (0..<c).map{ _ in try highPrecisionNumber(from: simpleStream, options: opt) }
@@ -588,8 +588,8 @@ final public class UBJSONSerialization {
 		case .int16Bits:   let ret:  Int16 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
 		case .int32Bits:   let ret:  Int32 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
 		case .int64Bits:   let ret:  Int64 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .float32Bits: let ret:  Float = try simpleStream.readType(); return ret
-		case .float64Bits: let ret: Double = try simpleStream.readType(); return ret
+		case .float32Bits: let ret:  Float = try simpleStream.readBigEndianFloat();  return ret
+		case .float64Bits: let ret: Double = try simpleStream.readBigEndianDouble(); return ret
 			
 		case .highPrecisionNumber:
 			return try highPrecisionNumber(from: simpleStream, options: opt)
