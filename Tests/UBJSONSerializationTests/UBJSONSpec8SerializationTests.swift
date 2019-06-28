@@ -529,6 +529,71 @@ class UBJSONSpec8SerializationTests : XCTestCase {
 		XCTAssertTrue(try UBJSONSpec8Serialization.areUBJSONDocEqual(decoded, ref))
 	}
 	
+	/* From https://github.com/ubjson/universal-binary-json-java/raw/5062ff3008c30c1b61ebd758cbc322bc1f60f33a/src/test/resources/org/ubjson/MediaContent.ubj
+	 * and  https://github.com/ubjson/universal-binary-json-java/raw/baa5ccb6395e8a63cb03e604fc50c68420b90ca9/src/test/resources/org/ubjson/MediaContent.formatted.json
+	 * The ref (JSON) had to be fixed because it was not the JSON representation
+	 * of the UBJSON document… */
+	func testDecodeExternalTest3FromGitHub() throws {
+		let dataHex = """
+		6F027305 4D656469 616F0B73 03757269 731E6874 74703A2F 2F6A6176 616F6E65
+		2E636F6D 2F6B6579 6E6F7465 2E6D7067 73057469 746C6573 0F4A6176 616F6E65
+		204B6579 6E6F7465 73057769 64746849 00000280 73066865 69676874 49000001
+		E0730666 6F726D61 74730A76 6964656F 2F6D7067 34730864 75726174 696F6E49
+		0112A880 73047369 7A654903 84000073 07626974 72617465 49000400 00730770
+		6572736F 6E736102 730A4269 6C6C2047 61746573 730A5374 65766520 4A6F6273
+		7306706C 61796572 73044A41 56417309 636F7079 72696768 745A7306 496D6167
+		65736102 6F057303 75726973 24687474 703A2F2F 6A617661 6F6E652E 636F6D2F
+		6B65796E 6F74655F 6C617267 652E6A70 67730574 69746C65 730F4A61 76616F6E
+		65204B65 796E6F74 65730577 69647468 49000004 00730668 65696768 74490000
+		03007304 73697A65 73054C41 5247456F 05730375 72697324 68747470 3A2F2F6A
+		6176616F 6E652E63 6F6D2F6B 65796E6F 74655F73 6D616C6C 2E6A7067 73057469
+		746C6573 0F4A6176 616F6E65 204B6579 6E6F7465 73057769 64746849 00000140
+		73066865 69676874 49000000 F0730473 697A6573 05534D41 4C4C
+		"""
+		let refJSON = #"""
+		{
+			"Media":{
+				"uri":"http://javaone.com/keynote.mpg",
+				"title":"Javaone Keynote",
+				"width":640,
+				"height":480,
+				"format":"video/mpg4",
+				"duration":18000000,
+				"size":58982400,
+				"bitrate":262144,
+				"persons":[
+					"Bill Gates",
+					"Steve Jobs"
+				],
+				"player":"JAVA",
+				"copyright":null
+			},
+			"Images":[
+				{
+					"uri":"http://javaone.com/keynote_large.jpg",
+					"title":"Javaone Keynote",
+					"width":1024,
+					"height":768,
+					"size":"LARGE"
+				},
+				{
+					"uri":"http://javaone.com/keynote_small.jpg",
+					"title":"Javaone Keynote",
+					"width":320,
+					"height":240,
+					"size":"SMALL"
+				}
+			]
+		}
+		"""#
+		let refData = Data(refJSON.utf8)
+		let data = Data(hexEncoded: dataHex)!
+		let refWithDoubles = try JSONSerialization.jsonObject(with: refData, options: []) as! [String: Any?]
+		let ref = refWithDoubles.mapValues(transformDoublesToFloatsAndInts)
+		let decoded = try UBJSONSpec8Serialization.ubjsonObject(with: data)
+		XCTAssertTrue(try UBJSONSpec8Serialization.areUBJSONDocEqual(decoded, ref))
+	}
+	
 	private func transformDoublesToFloatsAndInts(_ v: Any?) -> Any? {
 		switch v {
 		case let d as Double:         return isDecimalWhole(Decimal(d)) ? Int(d) : Float(d)
