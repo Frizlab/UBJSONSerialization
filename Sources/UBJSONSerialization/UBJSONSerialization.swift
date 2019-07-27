@@ -13,7 +13,7 @@ import SimpleStream
 
 /** [UBJSON spec 12](https://github.com/ubjson/universal-binary-json/tree/b0f2cbb44ef19357418e41a0813fc498a9eb2779/spec12)
 
-At the time of writing, also the specs that are present at [on the website](http://ubjson.org). */
+At the time of writing, also the specs that are present [on the website](http://ubjson.org). */
 final public class UBJSONSerialization {
 	
 	public struct ReadingOptions : OptionSet {
