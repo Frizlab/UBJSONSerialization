@@ -31,7 +31,7 @@ print(myFirstUBJSONDoc == unserializedUBJSONDoc as! [String: String])
 Serializing/deserializing to/from a stream is also supported.
 **Important**: Unlike `JSONSerialization`, when a full valid object has been parsed
 from a [SimpleStream](https://github.com/Frizlab/SimpleStream), you can unserialized
-another object from the same stream. This is useful to parsed a multiple separated
+another object from the same stream. This is useful to parse a multiple separated
 documents coming in a single stream.
 
 Finally, a method lets you know if a given dictionary can be serialized as an
@@ -45,6 +45,7 @@ the moment in Swift.
 I used the UBJSON specification from http://ubjson.org
 
 ## To Do
+- [ ] Verify support for decoding multiple UBJSON docs in a single stream;
 - [ ] Support for streaming (receiving/sending data live);
 - [ ] At some point in the future, but maybe in a separate project, add support for
 Swift’s Encoder protocol.
