@@ -7,7 +7,8 @@
  */
 
 import Foundation
-import SimpleStream
+
+import StreamReader
 
 
 
@@ -102,7 +103,7 @@ final public class UBJSONSpec8Serialization {
 	}
 	
 	public class func ubjsonObject(with data: Data, options opt: ReadingOptions = []) throws -> Any? {
-		let simpleDataStream = SimpleDataStream(data: data)
+		let simpleDataStream = DataReader(data: data)
 		let ret = try ubjsonObject(with: simpleDataStream, options: opt)
 		
 		/* Check for no garbage at end of the data */
@@ -113,16 +114,16 @@ final public class UBJSONSpec8Serialization {
 	}
 	
 	public class func ubjsonObject(with stream: InputStream, options opt: ReadingOptions = []) throws -> Any? {
-		let simpleInputStream = SimpleInputStream(stream: stream, bufferSize: 1024*1024, bufferSizeIncrement: 1024, streamReadSizeLimit: nil)
+		let simpleInputStream = InputStreamReader(stream: stream, bufferSize: 1024*1024, bufferSizeIncrement: 1024, readSizeLimit: nil)
 		return try ubjsonObject(with: simpleInputStream, options: opt)
 	}
 	
-	/* Note: We're using the SimpleReadStream method instead of InputStream for
+	/* Note: We're using the StreamReader method instead of InputStream for
 	 *       conveninence, but using InputStream directly would probably be
-	 *       faster. Also we don't need all of the “clever” bits of SimpleStream,
+	 *       faster. Also we don't need all of the “clever” bits of StreamReader,
 	 *       so one day we should migrate, or at least measure the performances
 	 *       of both. */
-	class func ubjsonObject(with simpleStream: SimpleReadStream, options opt: ReadingOptions = []) throws -> Any? {
+	class func ubjsonObject(with streamReader: StreamReader, options opt: ReadingOptions = []) throws -> Any? {
 		/* We assume Swift will continue to use the IEEE 754 spec for representing
 		 * floats and doubles forever. Use of the spec validated in August 2017
 		 * by @jckarter: https://twitter.com/jckarter/status/900073525905506304 */
@@ -130,8 +131,8 @@ final public class UBJSONSpec8Serialization {
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
 		
-		let elementType = try self.elementType(from: simpleStream, allowNop: opt.contains(.returnNopElements))
-		return try element(from: simpleStream, type: elementType, options: opt)
+		let elementType = try self.elementType(from: streamReader, allowNop: opt.contains(.returnNopElements))
+		return try element(from: streamReader, type: elementType, options: opt)
 	}
 	
 	public class func data(withUBJSONObject object: Any?, options opt: WritingOptions = []) throws -> Data {
@@ -351,10 +352,10 @@ final public class UBJSONSpec8Serialization {
 		
 	}
 	
-	private class func elementType(from simpleStream: SimpleReadStream, allowNop: Bool) throws -> UBJSONSpec8ElementType {
+	private class func elementType(from streamReader: StreamReader, allowNop: Bool) throws -> UBJSONSpec8ElementType {
 		var curElementType: UBJSONSpec8ElementType
 		repeat {
-			let intType: UInt8 = try simpleStream.readBigEndianInt()
+			let intType: UInt8 = try streamReader.readBigEndianInt()
 			guard let e = UBJSONSpec8ElementType(rawValue: intType) else {
 				throw UBJSONSerializationError.invalidElementType(intType)
 			}
@@ -363,36 +364,36 @@ final public class UBJSONSpec8Serialization {
 		return curElementType
 	}
 	
-	private class func highPrecisionNumber(from simpleStream: SimpleReadStream, isSmall: Bool, options opt: ReadingOptions) throws -> HighPrecisionNumber {
+	private class func highPrecisionNumber(from streamReader: StreamReader, isSmall: Bool, options opt: ReadingOptions) throws -> HighPrecisionNumber {
 		guard opt.contains(.allowHighPrecisionNumbers) else {throw UBJSONSerializationError.unexpectedHighPrecisionNumber}
-		let str = try string(from: simpleStream, isSmall: isSmall, options: opt)
+		let str = try string(from: streamReader, isSmall: isSmall, options: opt)
 		return try HighPrecisionNumber(unparsedValue: str)
 	}
 	
-	private class func string(from simpleStream: SimpleReadStream, isSmall: Bool, options opt: ReadingOptions) throws -> String {
+	private class func string(from streamReader: StreamReader, isSmall: Bool, options opt: ReadingOptions) throws -> String {
 		let size: Int
-		if isSmall {let s: Int8  = try simpleStream.readBigEndianInt(); size = Int(s)}
-		else       {let s: Int32 = try simpleStream.readBigEndianInt(); size = Int(s)}
+		if isSmall {let s: Int8  = try streamReader.readBigEndianInt(); size = Int(s)}
+		else       {let s: Int32 = try streamReader.readBigEndianInt(); size = Int(s)}
 		
-		let strData = try simpleStream.readData(size: size)
+		let strData = try streamReader.readData(size: size)
 		guard let str = String(data: strData, encoding: .utf8) else {
 			throw UBJSONSerializationError.invalidUTF8String(strData)
 		}
 		return str
 	}
 	
-	private class func array(from simpleStream: SimpleReadStream, isSmall: Bool, options opt: ReadingOptions) throws -> [Any?] {
+	private class func array(from streamReader: StreamReader, isSmall: Bool, options opt: ReadingOptions) throws -> [Any?] {
 		var res = [Any?]()
 		
 		let size: Int
-		if isSmall {let s: UInt8  = try simpleStream.readBigEndianInt(); size = Int(s)}
-		else       {let s: UInt32 = try simpleStream.readBigEndianInt(); size = Int(s)}
+		if isSmall {let s: UInt8  = try streamReader.readBigEndianInt(); size = Int(s)}
+		else       {let s: UInt32 = try streamReader.readBigEndianInt(); size = Int(s)}
 		
 		let isIndeterminateSize = (isSmall && size == 255)
 		if !isIndeterminateSize {
 			let subParseOptWithNop = opt.union(.returnNopElements)
 			for _ in 0..<size {
-				let curObj = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+				let curObj = try ubjsonObject(with: streamReader, options: subParseOptWithNop)
 				guard !(curObj is Nop) else {throw UBJSONSerializationError.sizedArrayContainsNop}
 				guard curObj != InternalUBJSONElement.containerEnd else {throw UBJSONSerializationError.malformedObject}
 				
@@ -401,7 +402,7 @@ final public class UBJSONSpec8Serialization {
 		} else {
 			let subParseOpt = opt.contains(.keepNopElementsInArrays) ? opt.union(.returnNopElements) : opt.subtracting(.returnNopElements)
 			while true {
-				let curObj = try ubjsonObject(with: simpleStream, options: subParseOpt)
+				let curObj = try ubjsonObject(with: streamReader, options: subParseOpt)
 				guard curObj != InternalUBJSONElement.containerEnd else {break}
 				res.append(curObj) /* Nop filtering is done before */
 			}
@@ -410,21 +411,21 @@ final public class UBJSONSpec8Serialization {
 		return res
 	}
 	
-	private class func object(from simpleStream: SimpleReadStream, isSmall: Bool, options opt: ReadingOptions) throws -> [String: Any?] {
+	private class func object(from streamReader: StreamReader, isSmall: Bool, options opt: ReadingOptions) throws -> [String: Any?] {
 		var res = [String: Any?]()
 		
 		let size: Int
-		if isSmall {let s: UInt8  = try simpleStream.readBigEndianInt(); size = Int(s)}
-		else       {let s: UInt32 = try simpleStream.readBigEndianInt(); size = Int(s)}
+		if isSmall {let s: UInt8  = try streamReader.readBigEndianInt(); size = Int(s)}
+		else       {let s: UInt32 = try streamReader.readBigEndianInt(); size = Int(s)}
 		
 		let isIndeterminateSize = (isSmall && size == 255)
 		if !isIndeterminateSize {
 			let subParseOptWithNop = opt.union(.returnNopElements)
 			for _ in 0..<size {
-				let curKeyAny = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+				let curKeyAny = try ubjsonObject(with: streamReader, options: subParseOptWithNop)
 				guard let curKey = curKeyAny as? String else {throw UBJSONSerializationError.malformedObject}
 				
-				let curValue = try ubjsonObject(with: simpleStream, options: subParseOptWithNop)
+				let curValue = try ubjsonObject(with: streamReader, options: subParseOptWithNop)
 				if curValue is Nop {throw UBJSONSerializationError.malformedObject}
 				
 				res[curKey] = curValue
@@ -432,11 +433,11 @@ final public class UBJSONSpec8Serialization {
 		} else {
 			let subParseOptNoNop = opt.subtracting(.returnNopElements)
 			while true {
-				let curKeyAny = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+				let curKeyAny = try ubjsonObject(with: streamReader, options: subParseOptNoNop)
 				guard curKeyAny != InternalUBJSONElement.containerEnd else {break}
 				guard let curKey = curKeyAny as? String else {throw UBJSONSerializationError.malformedObject}
 				
-				let curValue = try ubjsonObject(with: simpleStream, options: subParseOptNoNop)
+				let curValue = try ubjsonObject(with: streamReader, options: subParseOptNoNop)
 				guard curValue != InternalUBJSONElement.containerEnd else {throw UBJSONSerializationError.malformedObject}
 				
 				res[curKey] = curValue /* Nop filtering is done before */
@@ -446,7 +447,7 @@ final public class UBJSONSpec8Serialization {
 		return res
 	}
 	
-	private class func element(from simpleStream: SimpleReadStream, type elementType: UBJSONSpec8ElementType, options opt: ReadingOptions) throws -> Any? {
+	private class func element(from streamReader: StreamReader, type elementType: UBJSONSpec8ElementType, options opt: ReadingOptions) throws -> Any? {
 		switch elementType {
 		case .nop:
 			assert(opt.contains(.returnNopElements))
@@ -456,24 +457,24 @@ final public class UBJSONSpec8Serialization {
 		case .`true`:  return true
 		case .`false`: return false
 			
-		case .int8Bits:    let ret:   Int8 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int16Bits:   let ret:  Int16 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int32Bits:   let ret:  Int32 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .int64Bits:   let ret:  Int64 = try simpleStream.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
-		case .float32Bits: let ret:  Float = try simpleStream.readBigEndianFloat();  return ret
-		case .float64Bits: let ret: Double = try simpleStream.readBigEndianDouble(); return ret
+		case .int8Bits:    let ret:   Int8 = try streamReader.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int16Bits:   let ret:  Int16 = try streamReader.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int32Bits:   let ret:  Int32 = try streamReader.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .int64Bits:   let ret:  Int64 = try streamReader.readBigEndianInt(); return opt.contains(.keepIntPrecision) ? ret : Int(ret)
+		case .float32Bits: let ret:  Float = try streamReader.readBigEndianFloat();  return ret
+		case .float64Bits: let ret: Double = try streamReader.readBigEndianDouble(); return ret
 			
-		case .highPrecisionNumberSizeOn1Byte:  return try highPrecisionNumber(from: simpleStream, isSmall: true,  options: opt)
-		case .highPrecisionNumberSizeOn4Bytes: return try highPrecisionNumber(from: simpleStream, isSmall: false, options: opt)
+		case .highPrecisionNumberSizeOn1Byte:  return try highPrecisionNumber(from: streamReader, isSmall: true,  options: opt)
+		case .highPrecisionNumberSizeOn4Bytes: return try highPrecisionNumber(from: streamReader, isSmall: false, options: opt)
 			
-		case .stringSizeOn1Byte:  return try string(from: simpleStream, isSmall: true,  options: opt)
-		case .stringSizeOn4Bytes: return try string(from: simpleStream, isSmall: false, options: opt)
+		case .stringSizeOn1Byte:  return try string(from: streamReader, isSmall: true,  options: opt)
+		case .stringSizeOn4Bytes: return try string(from: streamReader, isSmall: false, options: opt)
 			
-		case .arrayStartSizeOn1Byte:  return try array(from: simpleStream, isSmall: true,  options: opt)
-		case .arrayStartSizeOn4Bytes: return try array(from: simpleStream, isSmall: false, options: opt)
+		case .arrayStartSizeOn1Byte:  return try array(from: streamReader, isSmall: true,  options: opt)
+		case .arrayStartSizeOn4Bytes: return try array(from: streamReader, isSmall: false, options: opt)
 			
-		case .objectStartSizeOn1Byte:  return try object(from: simpleStream, isSmall: true,  options: opt)
-		case .objectStartSizeOn4Bytes: return try object(from: simpleStream, isSmall: false, options: opt)
+		case .objectStartSizeOn1Byte:  return try object(from: streamReader, isSmall: true,  options: opt)
+		case .objectStartSizeOn4Bytes: return try object(from: streamReader, isSmall: false, options: opt)
 			
 		case .containerEnd: return InternalUBJSONElement.containerEnd
 		}

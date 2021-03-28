@@ -7,7 +7,7 @@
 
 import Foundation
 
-import SimpleStream
+import StreamReader
 
 
 
@@ -114,7 +114,7 @@ extension OutputStream {
 }
 
 
-extension SimpleReadStream {
+extension StreamReader {
 	
 	func readBigEndianInt() throws -> Int {
 		let i: Int = try readType()

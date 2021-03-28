@@ -30,7 +30,7 @@ print(myFirstUBJSONDoc == unserializedUBJSONDoc as! [String: String])
 
 Serializing/deserializing to/from a stream is also supported.
 **Important**: Unlike `JSONSerialization`, when a full valid object has been parsed
-from a [SimpleStream](https://github.com/Frizlab/SimpleStream), you can unserialized
+from a [StreamReader](https://github.com/Frizlab/stream-reader), you can unserialized
 another object from the same stream. This is useful to parse a multiple separated
 documents coming in a single stream.
 
