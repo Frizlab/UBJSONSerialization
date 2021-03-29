@@ -9,8 +9,9 @@ import Foundation
 
 
 
-/** To represent a high precision number. The wrapped value is guaranteed to be
-a valid number (in terms of the [JSON number spec](http://json.org)).
+/**
+To represent a high precision number. The wrapped value is guaranteed to be a
+valid number (in terms of the [JSON number spec](http://json.org)).
 
 - Note: The fact that `decimalPart` is non-nil does not necessarily mean the
 number is not an int, and vice-versa. Indeed the decimal part can be equal to 0,

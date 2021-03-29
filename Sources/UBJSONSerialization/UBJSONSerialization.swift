@@ -12,7 +12,8 @@ import StreamReader
 
 
 
-/** [UBJSON spec 12](https://github.com/ubjson/universal-binary-json/tree/b0f2cbb44ef19357418e41a0813fc498a9eb2779/spec12)
+/**
+[UBJSON spec 12](https://github.com/ubjson/universal-binary-json/tree/b0f2cbb44ef19357418e41a0813fc498a9eb2779/spec12)
 
 At the time of writing, also the specs that are present [on the website](http://ubjson.org). */
 final public class UBJSONSerialization {
@@ -214,7 +215,8 @@ final public class UBJSONSerialization {
 		return size
 	}
 	
-	/** Check a dictionary for UBJSON validity.
+	/**
+	Check a dictionary for UBJSON validity.
 	
 	You have an option to treat Nop as an invalid value, either if directly the
 	value, or if it inside an array. Nop is always invalid inside a dictionary. */
@@ -239,8 +241,9 @@ final public class UBJSONSerialization {
 		}
 	}
 	
-	/** Check both given UBJSON for equality. Throws if the docs are not valid
-	UBJSON docs! */
+	/**
+	Check both given UBJSON for equality. Throws if the docs are not valid UBJSON
+	docs! */
 	public class func areUBJSONDocEqual(_ doc1: Any?, _ doc2: Any?) throws -> Bool {
 		switch doc1 {
 		case nil:             guard doc2          == nil else {return false}
@@ -628,8 +631,9 @@ final public class UBJSONSerialization {
 		}
 	}
 	
-	/** Determine whether the end of the container has been reached with a given
-	set of parameter.
+	/**
+	Determine whether the end of the container has been reached with a given set
+	of parameter.
 	
 	If the declared object count is nil (was not declared in the container), the
 	current object must not be nil. (Can be .some(nil), though!) */
