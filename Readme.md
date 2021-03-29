@@ -1,6 +1,6 @@
 # UBJSONSerialization
 
-UBJSON Serialization in native Swift 4.2
+UBJSON Serialization in native Swift
 
 ## Installation & Compatibility
 The recommended (and only tested) way to install and use UBJSONSerialization is
