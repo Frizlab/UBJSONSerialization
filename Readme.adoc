@@ -15,7 +15,7 @@ import PackageDescription
 let package = Package(
 	name: "myawesomeproject",
 	dependencies: [.package(url: "https://github.com/Frizlab/UBJSONSerialization.git", from: "1.0.1")],
-	targets: [.target(name: "myawesomeproject", dependencies: ["UBJSONSerialization"])]
+	targets: [.target(name: "myawesomeproject", dependencies: [.product(name: "UBJSONSerialization", package: "UBJSONSerialization")])]
 )
 ----
 
