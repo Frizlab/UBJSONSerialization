@@ -194,7 +194,7 @@ final public class UBJSONSpec8Serialization {
 	public class func isValidUBJSONObject(_ obj: Any?, treatNopAsInvalid: Bool = false, treatNopAsInvalidInArray: Bool = false) -> Bool {
 		switch obj {
 			case nil:                                                return true
-			case _ as Nop:                                           return treatNopAsInvalid
+			case _ as Nop:                                           return !treatNopAsInvalid
 			case _ as Bool, _ as Int, _ as Int8:                     return true
 			case _ as Int16, _ as Int32, _ as Int64, _ as Float:     return true
 			case _ as Double, _ as HighPrecisionNumber, _ as String: return true
