@@ -6,8 +6,8 @@
         "repositoryURL": "https://github.com/Frizlab/stream-reader.git",
         "state": {
           "branch": null,
-          "revision": "8e8f90db389a1ffd35300cec652db3841e1c5791",
-          "version": "3.0.0"
+          "revision": "09104092cb7e87dc6d1086d40c06d7606fc6cb94",
+          "version": "3.2.3"
         }
       },
       {
@@ -15,8 +15,8 @@
         "repositoryURL": "https://github.com/apple/swift-system.git",
         "state": {
           "branch": null,
-          "revision": "8ffa04c0a0592e6f4f9c30926dedd8fa1c5371f9",
-          "version": "0.0.1"
+          "revision": "ce8b4910730114fa1eb46967a031a04f7594f42d",
+          "version": "1.0.0"
         }
       }
     ]
