@@ -1,35 +1,33 @@
 /*
- * HighPrecisionNumber.swift
- * UBJSONSerialization
- *
- * Created by François Lamboley on 8/22/17.
- */
+ * HighPrecisionNumber.swift
+ * UBJSONSerialization
+ *
+ * Created by François Lamboley on 8/22/17.
+ */
 
 import Foundation
 
 
 
 /**
-To represent a high precision number. The wrapped value is guaranteed to be a
-valid number (in terms of the [JSON number spec](http://json.org)).
-
-- Note: The fact that `decimalPart` is non-nil does not necessarily mean the
-number is not an int, and vice-versa. Indeed the decimal part can be equal to 0,
-or the exponent can make the number int or decimal. However a nil decimal part
-**and** a nil or non-negative exponent part guarantees the number is an int.
-
-- Note: According to the specs, `".42"` is not a valid number. Nor is `"01"` or
-`"+1"`. But `"1e01"` or `"1e+1"` are.
-
-- Note: Two high-precision numbers are considered equal if their “normalized
-string value” are equal. The normalized string value should always represent the
-same high-precision number as the wrapped stringValue, even though both strings
-might not always be the same. The normalized string value will simply remove any
-leading zeros and the plus sign in the exponent, if any, and lowercase the “e“
-if the number contains an exponent. It will keep trailing zeros on the decimal
-part of the number though (in science, `1.10e10 != 1.1e10`). There can't be any
-leading 0 or plus sign on the integer part of a valid high precision number
-(JSON specs). */
+ To represent a high precision number.
+ The wrapped value is guaranteed to be a valid number (in terms of the [JSON number spec](http://json.org)).
+ 
+ - Note: The fact that `decimalPart` is non-nil does not necessarily mean the number is not an int, and vice-versa.
+ Indeed the decimal part can be equal to 0, or the exponent can make the number int or decimal.
+ However a nil decimal part **and** a nil or non-negative exponent part guarantees the number is an int.
+ 
+ - Note: According to the specs, `".42"` is not a valid number.
+ Nor is `"01"` or `"+1"`.
+ But `"1e01"` or `"1e+1"` are.
+ 
+ - Note: Two high-precision numbers are considered equal if their “normalized string value” are equal.
+ The normalized string value should always represent the same high-precision number as the wrapped stringValue,
+ even though both strings might not always be the same.
+ The normalized string value will simply remove any leading zeros and the plus sign in the exponent, if any,
+ and lowercase the “e“ if the number contains an exponent.
+ It will keep trailing zeros on the decimal part of the number though (in science, `1.10e10 != 1.1e10`).
+ There can't be any leading 0 or plus sign on the integer part of a valid high precision number (JSON specs). */
 public struct HighPrecisionNumber : Equatable, Hashable {
 	
 	public enum Digit : String {
@@ -63,9 +61,9 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 				}
 				
 				switch char {
-				case "-": parser.hasNegativeSign = true;                           parser.engine = waitDigitEnd; return true
-				case "+": guard parser.allowLeadingZeroOrPlus else {return false}; parser.engine = waitDigitEnd; return true
-				default: return false
+					case "-": parser.hasNegativeSign = true;                           parser.engine = waitDigitEnd; return true
+					case "+": guard parser.allowLeadingZeroOrPlus else {return false}; parser.engine = waitDigitEnd; return true
+					default: return false
 				}
 			}
 			
@@ -142,7 +140,7 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 		var normalizedStringValueBuilding = ""
 		var currentIndex = unparsedValue.startIndex
 		guard let i = NoExponentHighPrecisionInt(stringValue: unparsedValue, startIndex: &currentIndex, allowLeadingZeroOrPlus: false) else {
-			throw UBJSONSerializationError.invalidHighPrecisionNumber(unparsedValue)
+			throw Err.invalidHighPrecisionNumber(unparsedValue)
 		}
 		normalizedStringValueBuilding += i.normalizedStringValue
 		intPart = i
@@ -151,11 +149,11 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 		if let d = decimalPart {normalizedStringValueBuilding += "." + d.map{ $0.rawValue }.joined()}
 		if currentIndex < unparsedValue.endIndex {
 			guard unparsedValue[currentIndex] == "e" || unparsedValue[currentIndex] == "E" else {
-				throw UBJSONSerializationError.invalidHighPrecisionNumber(unparsedValue)
+				throw Err.invalidHighPrecisionNumber(unparsedValue)
 			}
 			currentIndex = unparsedValue.index(after: currentIndex)
 			guard let e = NoExponentHighPrecisionInt(stringValue: unparsedValue, startIndex: &currentIndex, allowLeadingZeroOrPlus: true) else {
-				throw UBJSONSerializationError.invalidHighPrecisionNumber(unparsedValue)
+				throw Err.invalidHighPrecisionNumber(unparsedValue)
 			}
 			normalizedStringValueBuilding += "e" + e.normalizedStringValue
 			exponentPart = e
@@ -164,7 +162,7 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 		}
 		
 		guard currentIndex == unparsedValue.endIndex else {
-			throw UBJSONSerializationError.invalidHighPrecisionNumber(unparsedValue)
+			throw Err.invalidHighPrecisionNumber(unparsedValue)
 		}
 		
 		normalizedStringValue = normalizedStringValueBuilding

@@ -1,9 +1,9 @@
 /*
- * Utils.swift
- * UBJSONSerialization
- *
- * Created by François Lamboley on 2019/6/26.
- */
+ * Utils.swift
+ * UBJSONSerialization
+ *
+ * Created by François Lamboley on 2019/6/26.
+ */
 
 import Foundation
 
@@ -18,7 +18,7 @@ extension OutputStream {
 		
 		let bound = dataPtr.bindMemory(to: UInt8.self)
 		let writtenSize = write(bound.baseAddress!, maxLength: dataPtr.count)
-		guard writtenSize == dataPtr.count else {throw UBJSONSerializationError.cannotWriteToStream(streamError: streamError)}
+		guard writtenSize == dataPtr.count else {throw Err.cannotWriteToStream(streamError: streamError)}
 		return dataPtr.count
 	}
 	

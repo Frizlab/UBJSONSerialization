@@ -1,9 +1,9 @@
 /*
- * UBJSONSerializationError.swift
- * UBJSONSerialization
- *
- * Created by François Lamboley on 8/22/17.
- */
+ * Err.swift
+ * UBJSONSerialization
+ *
+ * Created by François Lamboley on 8/22/17.
+ */
 
 import Foundation
 
@@ -13,18 +13,17 @@ import Foundation
 public enum UBJSONSerializationError : Error {
 	
 	/**
-	Only when decoding from Data (as opposed to decoding from a stream), if there
-	are non-ignorable data after an element has been deserialized, this error
-	will be thrown. */
+	 Only when decoding from Data (as opposed to decoding from a stream),
+	 if there are non-ignorable data after an element has been deserialized,
+	 this error will be thrown. */
 	case garbageAtEnd
 	
 	/**
-	An invalid element was found. The element is given in argument to this enum
-	case. */
+	 An invalid element was found.
+	 The element is given in argument to this enum case. */
 	case invalidElementType(UInt8)
 	/**
-	A high precision number element was found but the option to support them was
-	not set when parsing was called. */
+	 A high precision number element was found but the option to support them was not set when parsing was called. */
 	case unexpectedHighPrecisionNumber
 	
 	case invalidUTF8String(Data)
@@ -45,8 +44,8 @@ public enum UBJSONSerializationError : Error {
 	case cannotWriteToStream(streamError: Error?)
 	
 	/**
-	An invalid UBJSON object was given to be serialized. The invalid element is
-	passed in argument to this error. */
+	 An invalid UBJSON object was given to be serialized.
+	 The invalid element is passed in argument to this error. */
 	case invalidUBJSONObject(invalidElement: Any)
 	
 	/* Spec 8 error */
@@ -56,3 +55,5 @@ public enum UBJSONSerializationError : Error {
 	case internalError
 	
 }
+
+typealias Err = UBJSONSerializationError
