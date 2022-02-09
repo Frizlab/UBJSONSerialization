@@ -14,11 +14,19 @@ import StreamReader
 extension OutputStream {
 	
 	func write(dataPtr: UnsafeRawBufferPointer) throws -> Int {
-		guard dataPtr.count > 0 else {return 0}
+		var countToWrite = dataPtr.count
+		guard countToWrite > 0 else {return 0}
 		
-		let bound = dataPtr.bindMemory(to: UInt8.self)
-		let writtenSize = write(bound.baseAddress!, maxLength: dataPtr.count)
-		guard writtenSize == dataPtr.count else {throw Err.cannotWriteToStream(streamError: streamError)}
+		var memToWrite = dataPtr.bindMemory(to: UInt8.self).baseAddress! /* !-safe because we have checked against a 0-length buffer. */
+		while countToWrite > 0 {
+			/* Note: This blocks until at least 1 byte is written to the stream (or an error occurs). */
+			let writeRes = write(memToWrite, maxLength: countToWrite)
+			guard writeRes > 0 else {throw Err.cannotWriteToStream(streamError: streamError)}
+			
+			memToWrite = memToWrite.advanced(by: writeRes)
+			countToWrite -= writeRes
+		}
+		
 		return dataPtr.count
 	}
 	
