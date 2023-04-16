@@ -31,7 +31,7 @@ final public class UBJSONSpec8Serialization {
 		 Will be returned as ``HighPrecisionNumber``, which is basically a wrapper for the string-encoded value.
 		 
 		 The serialization will make sure the returned wrapped string is a valid high-precision number
-		 (follows the [JSON number spec](http://json.org)).
+		  (follows the [JSON number spec](http://json.org)).
 		 
 		 You can use something like [BigInt](https://github.com/lorentey/BigInt) to handle big integers.
 		 Note high-precision numbers can also be decimals. */
@@ -50,11 +50,11 @@ final public class UBJSONSpec8Serialization {
 		 (`No-Op` is invalid in an array whose size is known).
 		 
 		 Specs says this element is a valueless value, so in array, it should simply be skipped:
-		 for this input, `["a", Nop, "b"]`, we should return `["a", "b"]`.
+		  for this input, `["a", Nop, "b"]`, we should return `["a", "b"]`.
 		 This option allows you to keep the `Nop` in the deserialized array.
 		 
 		 `No-Op` in a dictionary has no meaning and is always **skipped** for indeterminate size dictionaries
-		 (`No-Op` is invalid in a dictionary whose size is known). */
+		  (`No-Op` is invalid in a dictionary whose size is known). */
 		public static let keepNopElementsInArrays = ReadingOptions(rawValue: 1 << 3)
 		
 		public init(rawValue v: Int) {
@@ -114,13 +114,13 @@ final public class UBJSONSpec8Serialization {
 		return try ubjsonObject(with: simpleInputStream, options: opt)
 	}
 	
-	/* Note: We're using the StreamReader method instead of InputStream for conveninence,
-	 *       but using InputStream directly would probably be faster.
-	 *       Also we don't need all of the “clever” bits of StreamReader, so one day we should migrate,
-	 *       or at least measure the performances of both. */
+	/* Note: We’re using the StreamReader method instead of InputStream for conveninence,
+	 *        but using InputStream directly would probably be faster.
+	 *       Also we don’t need all of the “clever” bits of StreamReader, so one day we should migrate,
+	 *        or at least measure the performances of both. */
 	class func ubjsonObject(with streamReader: StreamReader, options opt: ReadingOptions = []) throws -> Any? {
 		/* We assume Swift will continue to use the IEEE 754 spec for representing floats and doubles forever.
-		 * Use of the spec validated in August 2017 by @jckarter: https://twitter.com/jckarter/status/900073525905506304 */
+		 * Use of the spec validated in August 2017 by @jckarter: <https://twitter.com/jckarter/status/900073525905506304>. */
 		precondition(Int.max == Int64.max, "I currently need Int to be Int64")
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
@@ -295,46 +295,50 @@ final public class UBJSONSpec8Serialization {
 	/** The recognized UBJSON element types. */
 	private enum UBJSONSpec8ElementType : UInt8 {
 		
-		/** A null element. No payload. */
+		/** A null element (no payload). */
 		case null = 0x5a /* "Z" */
 		
-		/** This is the No-Op element. Converts to nothing. Might be used for maintaining a stream open for instance. No payload. */
+		/**
+		 This is the No-Op element (no payload).
+		 It converts to nothing.
+		 
+		 Might be used for maintaining a stream open for instance. */
 		case nop = 0x4e /* "N" */
 		
-		/** The boolean value “true”. No payload. */
+		/** The boolean value “true” (no payload). */
 		case `true` = 0x54 /* "T" */
 		
-		/** The boolean value “false”. No payload. */
+		/** The boolean value “false” (no payload). */
 		case `false` = 0x46 /* "F" */
 		
-		/** An Int8 value. 1 byte payload. */
+		/** An Int8 value (1 byte payload). */
 		case int8Bits = 0x42 /* "B" */
 		
-		/** An Int16 value. 2 bytes payload. */
+		/** An Int16 value (2 bytes payload). */
 		case int16Bits = 0x69 /* "i" */
 		
-		/** An Int32 value. 4 bytes payload. */
+		/** An Int32 value (4 bytes payload). */
 		case int32Bits = 0x49 /* "I" */
 		
-		/** An Int64 value. 8 bytes payload. */
+		/** An Int64 value (8 bytes payload). */
 		case int64Bits = 0x4c /* "L" */
 		
-		/** A Float with a 32-bit precision value. 4 bytes payload. */
+		/** A Float with a 32-bit precision value (4 bytes payload). */
 		case float32Bits = 0x64 /* "d" */
 		
-		/** A Float with a 64-bit precision value. 8 bytes payload. */
+		/** A Float with a 64-bit precision value (8 bytes payload). */
 		case float64Bits = 0x44 /* "D" */
 		
-		/** A high-precision number (string-encoded number). Size of string on 1 byte + string payload. */
+		/** A high-precision number (string-encoded number) (size of string on 1 byte + string payload). */
 		case highPrecisionNumberSizeOn1Byte = 0x68 /* "h" */
 		
-		/** A high-precision number (string-encoded number). Size of string on 4 byte4 + string payload. */
+		/** A high-precision number (string-encoded number) (size of string on 4 bytes + string payload). */
 		case highPrecisionNumberSizeOn4Bytes = 0x48 /* "H" */
 		
-		/** A string. Size of string on 1 byte + string payload. */
+		/** A string (size of string on 1 byte + string payload). */
 		case stringSizeOn1Byte = 0x73 /* "s" */
 		
-		/** A string. Size of string on 4 bytes + string payload. */
+		/** A string (size of string on 4 bytes + string payload). */
 		case stringSizeOn4Bytes = 0x53 /* "S" */
 		
 		case arrayStartSizeOn1Byte  = 0x61 /* "a" */
@@ -574,8 +578,8 @@ final public class UBJSONSpec8Serialization {
 		let optNoOptim = opt.subtracting(.optimizeIntsForSize)
 		
 		/* We check all the sizes directly in the method for the Int case
-		 * (as opposed to the Int64 case for instance where the Int32 case is checked,
-		 * but the Int16 case is checked in the Int32 function).
+		 *  (as opposed to the Int64 case for instance where the Int32 case is checked,
+		 *  but the Int16 case is checked in the Int32 function).
 		 *
 		 * The Int case is most likely to be the most common, so we want it to be as straightforward and fast as possible. */
 		

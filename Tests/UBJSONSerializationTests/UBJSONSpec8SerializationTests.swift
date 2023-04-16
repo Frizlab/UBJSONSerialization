@@ -5,7 +5,7 @@ import XCTest
 
 class UBJSONSpec8SerializationTests : XCTestCase {
 	
-	/* From https://raw.githubusercontent.com/ubjson/universal-binary-json-java/b0f2cbb44ef19357418e41a0813fc498a9eb2779/src/test/resources/org/ubjson/TwitterTimeline.ubj */
+	/* From <https://raw.githubusercontent.com/ubjson/universal-binary-json-java/b0f2cbb44ef19357418e41a0813fc498a9eb2779/src/test/resources/org/ubjson/TwitterTimeline.ubj>. */
 	func testDecodeExternalTest1FromGitHub() throws {
 		let dataHex = """
 			6F157306 69645F73 74727312 31323137 36393138 33383231 33313230 3030730D
@@ -145,8 +145,8 @@ class UBJSONSpec8SerializationTests : XCTestCase {
 		XCTAssertTrue(try UBJSONSpec8Serialization.areUBJSONDocEqual(decoded, ref))
 	}
 	
-	/* From https://github.com/ubjson/universal-binary-json-java/raw/baa5ccb6395e8a63cb03e604fc50c68420b90ca9/src/test/resources/org/ubjson/CouchDB4k.ubj
-	 * and  https://github.com/ubjson/universal-binary-json-java/raw/baa5ccb6395e8a63cb03e604fc50c68420b90ca9/src/test/resources/org/ubjson/CouchDB4k.formatted.json
+	/* From <https://github.com/ubjson/universal-binary-json-java/raw/baa5ccb6395e8a63cb03e604fc50c68420b90ca9/src/test/resources/org/ubjson/CouchDB4k.ubj>
+	 * and  <https://github.com/ubjson/universal-binary-json-java/raw/baa5ccb6395e8a63cb03e604fc50c68420b90ca9/src/test/resources/org/ubjson/CouchDB4k.formatted.json>.
 	 * The ref (JSON) had to be fixed because it was not the JSON representation of the UBJSON document… */
 	func testDecodeExternalTest2FromGitHub() throws {
 		let dataHex = """
@@ -522,8 +522,8 @@ class UBJSONSpec8SerializationTests : XCTestCase {
 		XCTAssertTrue(try UBJSONSpec8Serialization.areUBJSONDocEqual(decoded, ref))
 	}
 	
-	/* From https://github.com/ubjson/universal-binary-json-java/raw/5062ff3008c30c1b61ebd758cbc322bc1f60f33a/src/test/resources/org/ubjson/MediaContent.ubj
-	 * and  https://github.com/ubjson/universal-binary-json-java/raw/baa5ccb6395e8a63cb03e604fc50c68420b90ca9/src/test/resources/org/ubjson/MediaContent.formatted.json
+	/* From <https://github.com/ubjson/universal-binary-json-java/raw/5062ff3008c30c1b61ebd758cbc322bc1f60f33a/src/test/resources/org/ubjson/MediaContent.ubj>
+	 * and  <https://github.com/ubjson/universal-binary-json-java/raw/baa5ccb6395e8a63cb03e604fc50c68420b90ca9/src/test/resources/org/ubjson/MediaContent.formatted.json>.
 	 * The ref (JSON) had to be fixed because it was not the JSON representation of the UBJSON document… */
 	func testDecodeExternalTest3FromGitHub() throws {
 		let dataHex = """

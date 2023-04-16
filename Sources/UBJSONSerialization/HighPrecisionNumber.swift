@@ -23,11 +23,11 @@ import Foundation
  
  - Note: Two high-precision numbers are considered equal if their “normalized string value” are equal.
  The normalized string value should always represent the same high-precision number as the wrapped stringValue,
- even though both strings might not always be the same.
+  even though both strings might not always be the same.
  The normalized string value will simply remove any leading zeros and the plus sign in the exponent, if any,
- and lowercase the “e“ if the number contains an exponent.
+  and lowercase the “e“ if the number contains an exponent.
  It will keep trailing zeros on the decimal part of the number though (in science, `1.10e10 != 1.1e10`).
- There can't be any leading 0 or plus sign on the integer part of a valid high precision number (JSON specs). */
+ There can’t be any leading 0 or plus sign on the integer part of a valid high precision number (JSON specs). */
 public struct HighPrecisionNumber : Equatable, Hashable {
 	
 	public enum Digit : String {
@@ -103,7 +103,7 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 		}
 		
 		init?(stringValue: String, startIndex: inout String.Index, allowLeadingZeroOrPlus: Bool) {
-			guard startIndex < stringValue.endIndex else {return nil} /* Let's make sure we have at least one char to read */
+			guard startIndex < stringValue.endIndex else {return nil} /* Let’s make sure we have at least one char to read */
 			
 			var parser = Parser(parsedString: String(stringValue[startIndex...]), allowLeadingZeroOrPlus: allowLeadingZeroOrPlus)
 			let parseOffset: String.IndexDistance; (hasNegativeSign, unsignedIntPart, parseOffset) = parser.parse()
@@ -111,7 +111,7 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 			
 			guard !unsignedIntPart.isEmpty else {return nil}
 			
-			/* Computing normalized string value */
+			/* Computing normalized string value. */
 			let normalizedUnsignedIntStringPart: String
 			if unsignedIntPart.count == 1 {normalizedUnsignedIntStringPart = unsignedIntPart[0].rawValue}
 			else {

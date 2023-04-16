@@ -31,7 +31,7 @@ final public class UBJSONSerialization {
 		 Will be returned as ``HighPrecisionNumber``, which is basically a wrapper for the string-encoded value.
 		 
 		 The serialization will make sure the returned wrapped string is a valid high-precision number
-		 (follows the [JSON number spec](http://json.org)).
+		  (follows the [JSON number spec](http://json.org)).
 		 
 		 You can use something like [BigInt](https://github.com/lorentey/BigInt) to handle big integers.
 		 Note high-precision numbers can also be decimals. */
@@ -49,11 +49,11 @@ final public class UBJSONSerialization {
 		 Return ``Nop`` objects when receiving the serialized `No-Op` element in an array.
 		 
 		 Specs says this element is a valueless value, so in array, it should simply be skipped:
-		 for this input, `["a", Nop, "b"]`, we should return `["a", "b"]`.
+		  for this input, `["a", Nop, "b"]`, we should return `["a", "b"]`.
 		 This option allows you to keep the `Nop` in the deserialized array.
 		 
 		 - Note: ``Nop`` in a dictionary has no meaning and is always **skipped**
-		 (it is NOT (AFAICT) invalid to have a Nop element before a value in a dictionary in a non-optimized dictionary; the `No-Op` is simply skipped). */
+		  (it is NOT (AFAICT) invalid to have a Nop element before a value in a dictionary in a non-optimized dictionary; the `No-Op` is simply skipped). */
 		public static let keepNopElementsInArrays = ReadingOptions(rawValue: 1 << 3)
 		
 		public init(rawValue v: Int) {
@@ -90,10 +90,10 @@ final public class UBJSONSerialization {
 		 Try and optimize the serialization of the containers.
 		 By default, uses the less expensive option, which is a JSON-like serialization.
 		 It is cheap to produce, but for containers whose values are all of the same types,
-		 will produce bigger serializations, and most importantly, is more expensive to deserialize.
+		  will produce bigger serializations, and most importantly, is more expensive to deserialize.
 		 
-		 - Note: Our serializer will never produce the “first-level” optimization proposed in the specs
-		 (the count of the container is specified but not its type) because I don't think it has any advantages over the JSON-like representation.
+		 - Note: Our serializer will never produce the “first-level” optimization proposed in the specs (the count of the container is specified but not its type)
+		  because I don’t think it has any advantages over the JSON-like representation.
 		 I’d be happy to change my mind if somebody can give me good arguments in favor of this optimization :) */
 		public static let enableContainerOptimization = WritingOptions(rawValue: 1 << 3)
 		
@@ -119,13 +119,13 @@ final public class UBJSONSerialization {
 		return try ubjsonObject(with: simpleInputStream, options: opt)
 	}
 	
-	/* Note: We're using the StreamReader method instead of InputStream for conveninence,
-	 *       but using InputStream directly would probably be faster.
-	 *       Also we don't need all of the “clever” bits of StreamReader, so one day we should migrate,
-	 *       or at least measure the performances of both. */
+	/* Note: We’re using the StreamReader method instead of InputStream for conveninence,
+	 *        but using InputStream directly would probably be faster.
+	 *       Also we don’t need all of the “clever” bits of StreamReader, so one day we should migrate,
+	 *        or at least measure the performances of both. */
 	class func ubjsonObject(with streamReader: StreamReader, options opt: ReadingOptions = []) throws -> Any? {
 		/* We assume Swift will continue to use the IEEE 754 spec for representing floats and doubles forever.
-		 * Use of the spec validated in August 2017 by @jckarter: https://twitter.com/jckarter/status/900073525905506304 */
+		 * Use of the spec validated in August 2017 by @jckarter: <https://twitter.com/jckarter/status/900073525905506304>. */
 		precondition(Int.max == Int64.max, "I currently need Int to be Int64")
 		precondition(MemoryLayout<Float>.size == 4, "I currently need Float to be 32 bits")
 		precondition(MemoryLayout<Double>.size == 8, "I currently need Double to be 64 bits")
@@ -341,46 +341,49 @@ final public class UBJSONSerialization {
 	/** The recognized UBJSON element types. */
 	private enum UBJSONElementType : UInt8 {
 		
-		/** A null element. No payload. */
+		/** A null element (no payload). */
 		case null = 0x5a /* "Z" */
 		
-		/** This is the No-Op element. Converts to nothing. Might be used for maintaining a stream open for instance. No payload. */
+		/** This is the No-Op element (no payload).
+		 It converts to nothing.
+		 
+		 Might be used for maintaining a stream open for instance. . */
 		case nop = 0x4e /* "N" */
 		
-		/** The boolean value “true”. No payload. */
+		/** The boolean value “true” (no payload). */
 		case `true` = 0x54 /* "T" */
 		
-		/** The boolean value “false”. No payload. */
+		/** The boolean value “false” (no payload). */
 		case `false` = 0x46 /* "F" */
 		
-		/** An Int8 value. 1 byte payload. */
+		/** An Int8 value (1 byte payload). */
 		case int8Bits = 0x69 /* "i" */
 		
-		/** A UInt8 value. 1 byte payload. */
+		/** A UInt8 value (1 byte payload). */
 		case uint8Bits = 0x55 /* "U" */
 		
-		/** An Int16 value. 2 bytes payload. */
+		/** An Int16 value (2 bytes payload). */
 		case int16Bits = 0x49 /* "I" */
 		
-		/** An Int32 value. 4 bytes payload. */
+		/** An Int32 value (4 bytes payload). */
 		case int32Bits = 0x6c /* "l" */
 		
-		/** An Int64 value. 8 bytes payload. */
+		/** An Int64 value (8 bytes payload). */
 		case int64Bits = 0x4c /* "L" */
 		
-		/** A Float with a 32-bit precision value. 4 bytes payload. */
+		/** A Float with a 32-bit precision value (4 bytes payload). */
 		case float32Bits = 0x64 /* "d" */
 		
-		/** A Float with a 64-bit precision value. 8 bytes payload. */
+		/** A Float with a 64-bit precision value (8 bytes payload). */
 		case float64Bits = 0x44 /* "D" */
 		
-		/** A high-precision number (string-encoded number). Size of string + string payload. */
+		/** A high-precision number (string-encoded number: size of string + string payload). */
 		case highPrecisionNumber = 0x48 /* "H" */
 		
-		/** A char. 1 byte payload. */
+		/** A char (1 byte payload). */
 		case char = 0x43 /* "C" */
 		
-		/** A string. Size of string + string payload. */
+		/** A string (size of string + string payload). */
 		case string = 0x53 /* "S" */
 		
 		case arrayStart = 0x5b /* "[" */
@@ -482,7 +485,7 @@ final public class UBJSONSerialization {
 			let v = try curObj ?? ubjsonObject(with: streamReader, options: subParseOptWithNop)
 			switch v {
 				case .some(_ as InternalUBJSONElement):
-					/* Always an error as the arrayEnd case is detected earlier in the isEndOfContainer method */
+					/* Always an error as the arrayEnd case is detected earlier in the isEndOfContainer method. */
 					throw Err.malformedArray
 					
 				case .some(_ as Nop):
@@ -495,7 +498,7 @@ final public class UBJSONSerialization {
 					objectCount += 1
 			}
 			
-			/* Prepare end array detection */
+			/* Prepare end array detection. */
 			curObj = (declaredObjectCount == nil ? .some(try ubjsonObject(with: streamReader, options: subParseOptWithNop)) : nil)
 		}
 		return res
@@ -537,7 +540,7 @@ final public class UBJSONSerialization {
 				
 			default:
 				/* If the object is unoptimized, we must read the first object so we can determine whether the end of the object has been reached.
-				 * Also, if we don't read the element, we will probably have parsed half an element (type is parsed, but not the value). */
+				 * Also, if we don’t read the element, we will probably have parsed half an element (type is parsed, but not the value). */
 				curObj = try element(from: streamReader, type: type, options: subParseOptWithNop)
 		}
 		
@@ -717,8 +720,8 @@ final public class UBJSONSerialization {
 		let optNoOptim = opt.subtracting(.optimizeIntsForSize)
 		
 		/* We check all the sizes directly in the method for the Int case
-		 * (as opposed to the Int64 case for instance where the Int32 case is checked,
-		 * but the Int16 case is checked in the Int32 function).
+		 *  (as opposed to the Int64 case for instance where the Int32 case is checked,
+		 *  but the Int16 case is checked in the Int32 function).
 		 *
 		 * The Int case is most likely to be the most common, so we want it to be as straightforward and fast as possible. */
 		
@@ -781,7 +784,7 @@ final public class UBJSONSerialization {
 					try (a as! [[String: Any?]]).forEach{ s in size += try write(objectNoMarker: s, to: stream, options: optNoSkipNop) }
 			}
 		} else {
-			/* Writing array with standard (JSON-like) notation */
+			/* Writing array with standard (JSON-like) notation. */
 			for e in a {size += try writeUBJSONObject(e, to: stream, options: opt)}
 			size += try write(elementType: .arrayEnd, toStream: stream)
 		}
@@ -792,13 +795,13 @@ final public class UBJSONSerialization {
 		var size = 0
 		
 		if opt.contains(.enableContainerOptimization), let t = typeForOptimizedContainer(values: o.values) {
-			/* Container info */
+			/* Container info. */
 			size += try write(elementType: .internalContainerType, toStream: stream)
 			size += try write(elementType: t, toStream: stream)
 			size += try write(elementType: .internalContainerCount, toStream: stream)
 			size += try write(int: o.count, to: stream, options: opt)
 			
-			/* Container values */
+			/* Container values. */
 			let writer: (_ object: Any?) throws -> Int
 			switch t {
 				case .nop, .arrayEnd, .objectEnd, .internalContainerType, .internalContainerCount: fatalError("Internal logic error")
@@ -844,7 +847,7 @@ final public class UBJSONSerialization {
 				size += try writer(v)
 			}
 		} else {
-			/* Writing dictionary with standard (JSON-like) notation */
+			/* Writing dictionary with standard (JSON-like) notation. */
 			for (k, v) in o {
 				guard !(v is Nop) else {throw Err.dictionaryContainsNop}
 				size += try write(stringNoMarker: k, to: stream, options: opt)
@@ -904,7 +907,7 @@ final public class UBJSONSerialization {
 		}
 		
 		if latestType! == .int64Bits {
-			/* Let's find the actual int type we'll use */
+			/* Let’s find the actual int type we’ll use. */
 			if maxInt <=  Int8.max && minInt >=  Int8.min {return .int8Bits}
 			if maxInt <= UInt8.max && minInt >= UInt8.min {return .uint8Bits}
 			if maxInt <= Int16.max && minInt >= Int16.min {return .int16Bits}
@@ -983,7 +986,7 @@ private extension StreamReader {
 	
 	func readArrayOfType<Type>(count: Int) throws -> [Type] {
 		assert(MemoryLayout<Type>.stride == MemoryLayout<Type>.size)
-		/* Adapted (and upgraded) from https://stackoverflow.com/a/24516400 */
+		/* Adapted (and upgraded) from <https://stackoverflow.com/a/24516400>. */
 		return try readData(size: count * MemoryLayout<Type>.size, { bytes in
 			let bound = bytes.bindMemory(to: Type.self)
 			return Array(bound)
