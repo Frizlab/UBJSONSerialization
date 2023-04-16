@@ -38,7 +38,7 @@ class UBJSONSerializationTests : XCTestCase {
 	}
 	
 	func testEncodeOptimizedArrayOfInts() {
-		XCTAssertEqual(try UBJSONSerialization.data(withUBJSONObject: [Int8(42), Int64(21), 12, 9, 3], options: [.optimizeIntsForSize, .enableContainerOptimization]), Data(hexEncoded: "5B 24 69 23 69 05 2A 15 0C 09 03"))
+		XCTAssertEqual(try UBJSONSerialization.data(withUBJSONObject: [Int8(42), Int64(21), 12, 9, 3] as [Any], options: [.optimizeIntsForSize, .enableContainerOptimization]), Data(hexEncoded: "5B 24 69 23 69 05 2A 15 0C 09 03"))
 	}
 	
 	func testEncodeSimpleObject() {

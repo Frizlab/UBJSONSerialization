@@ -88,7 +88,7 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 				inputString = parsedString
 			}
 			
-			mutating func parse() -> (hasNegativeSign: Bool, unsignedIntPart: [Digit], parsedLength: String.IndexDistance) {
+			mutating func parse() -> (hasNegativeSign: Bool, unsignedIntPart: [Digit], parsedLength: Int) {
 				engine = Parser.waitStart
 				
 				var readCount = 0
@@ -106,7 +106,7 @@ public struct HighPrecisionNumber : Equatable, Hashable {
 			guard startIndex < stringValue.endIndex else {return nil} /* Let’s make sure we have at least one char to read */
 			
 			var parser = Parser(parsedString: String(stringValue[startIndex...]), allowLeadingZeroOrPlus: allowLeadingZeroOrPlus)
-			let parseOffset: String.IndexDistance; (hasNegativeSign, unsignedIntPart, parseOffset) = parser.parse()
+			let parseOffset: Int; (hasNegativeSign, unsignedIntPart, parseOffset) = parser.parse()
 			startIndex = stringValue.index(startIndex, offsetBy: parseOffset)
 			
 			guard !unsignedIntPart.isEmpty else {return nil}
